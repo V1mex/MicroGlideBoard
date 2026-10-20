@@ -1,11 +1,10 @@
 package app.vimex.microglideboard
 
-import GlideKeyboardView
 import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.inputmethod.EditorInfo
 
-class KeyboardService : InputMethodService() {
+class GlideKeyboardService : InputMethodService() {
 
     private lateinit var keyboardView: GlideKeyboardView
 
@@ -16,6 +15,11 @@ class KeyboardService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        keyboardView.reloadSettings()
         keyboardView.inputConnection = currentInputConnection
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
     }
 }

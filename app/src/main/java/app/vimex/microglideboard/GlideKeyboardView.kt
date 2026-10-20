@@ -1,7 +1,11 @@
+package app.vimex.microglideboard
+
 import android.content.Context
+import android.content.Intent
 import android.graphics.*
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputConnection
@@ -10,23 +14,55 @@ import kotlin.math.*
 class GlideKeyboardView(context: Context) : View(context) {
 
     companion object {
-        private const val HEIGHT_DP  = 330f;  private const val PREV_DP   = 26f
-        private const val LEFT_RATIO = 0.38f; private const val CX_R      = 0.42f
-        private const val Y_TOP      = 0.12f; private const val Y_BOT     = 0.88f
-        private const val GEST_DP    = 12f;   private const val SIDE_DP   = 22f
-        private const val CENR_DP    = 14f;   private const val HUP_DP    = 88f
-        private const val HR_DP      = 38f;   private const val HLR_DP    = 30f
-        private const val PILL_R_DP  = 17f
+        private const val PREV_DP   = 26f
+        private const val CX_R      = 0.50f
+        private const val Y_TOP     = 0.12f; private const val Y_BOT = 0.88f
+        private const val SIDE_DP   = 22f
+        private const val CENR_DP   = 14f;  private const val HUP_DP = 96f
         private const val BS_HOLD_MS = 500L;  private const val BS_RPT_MS = 80L
-        private const val LK = "\u0001"  // LANG_KEY
-        private const val SK = "\u0002"  // SYM_KEY
+        private const val LK = "\u0001"
+        private const val SK = "\u0002"
     }
 
-    private val dp    = resources.displayMetrics.density
-    private val gestR = GEST_DP * dp; private val sideR = SIDE_DP * dp
-    private val cenR  = CENR_DP * dp; private val hUp   = HUP_DP  * dp
-    private val hR    = HR_DP   * dp; private val hLR   = HLR_DP  * dp
+    private val dp = resources.displayMetrics.density
+    private val prefs = context.getSharedPreferences("glide_kb", Context.MODE_PRIVATE)
+
+    private var heightDp = KeyboardSettings.defaultFor("height_dp")
+    private var leftRatio = KeyboardSettings.defaultFor("left_ratio")
+    private var gestR = KeyboardSettings.defaultFor("gest_dp") * dp
+    // Мінімальна швидкість свайпу в dp/s. 0 вимикає саме швидкісний фільтр;
+    // поріг відстані gestR при цьому залишається окремим захистом від випадкових рухів.
+    private var minGestureSpeedDpS = KeyboardSettings.defaultFor("gesture_speed")
+    private var sideR = SIDE_DP * dp
+    private var cenR = CENR_DP * dp
+    private var hUp = HUP_DP * dp
+    private var hR = KeyboardSettings.defaultFor("hint_right") * dp
+    private var hLR = hR * 0.79f
+    private var hBubble = KeyboardSettings.defaultFor("hint_bubble")
+    private var disableLeftHints = false
+    private var disableRightHints = false
+    private var pillRadius = KeyboardSettings.defaultFor("hint_pill") * dp
+    private var pillOff = KeyboardSettings.defaultFor("pill_dist") * dp
     private val prevH = PREV_DP * dp
+
+    init { reloadSettings() }
+
+    fun reloadSettings() {
+        val oldHeight = heightDp
+        heightDp = KeyboardSettings.read(prefs, "height_dp")
+        leftRatio = KeyboardSettings.read(prefs, "left_ratio")
+        gestR = KeyboardSettings.read(prefs, "gest_dp") * dp
+        minGestureSpeedDpS = KeyboardSettings.read(prefs, "gesture_speed")
+        hR = KeyboardSettings.read(prefs, "hint_right") * dp
+        hLR = hR * 0.79f
+        hBubble = KeyboardSettings.read(prefs, "hint_bubble")
+        disableLeftHints = KeyboardSettings.readBoolean(prefs, "disable_left_hints")
+        disableRightHints = KeyboardSettings.readBoolean(prefs, "disable_right_hints")
+        pillRadius = KeyboardSettings.read(prefs, "hint_pill") * dp
+        pillOff = KeyboardSettings.read(prefs, "pill_dist") * dp
+        if (oldHeight != heightDp) requestLayout()
+        invalidate()
+    }
 
     // ↑ ↗ → ↘ ↓ ↙ ← ↖  (індекси 0..7)
     private val N: String? = null
@@ -36,20 +72,20 @@ class GlideKeyboardView(context: Context) : View(context) {
             listOf("с","в","к","л","м","д","п","у"),
             listOf("й","з","б","г","ж","ч","ю","ь"),
             listOf("х","ц","ш","щ","ф","я","є","ї"),
-            listOf("ґ", N, N, SK, N, LK, N, N)
+            listOf("ґ", N, N, N, N, N, N, N)
         ),
         "ENG" to listOf(
             listOf("e","t","a","o","i","n","s","h"),
             listOf("r","d","l","c","u","m","w","f"),
             listOf("g","y","p","b","v","k","j","q"),
-            listOf("x","z", N, SK, N, LK, N, N)
+            listOf("x","z", N, N, N, N, N, N)
         ),
         "РУС" to listOf(
             listOf("о","е","а","и","н","т","с","р"),
             listOf("в","л","к","м","д","п","у","я"),
             listOf("з","ь","б","г","й","х","ж","ш"),
             listOf("ы","э","ю","ч","щ","ц","ф","ё"),
-            listOf("ъ", N, N, SK, N, LK, N, N)
+            listOf("ъ", N, N, N, N, N, N, N)
         )
     )
     private val langOrder = listOf("УКР","ENG","РУС")
@@ -68,7 +104,7 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     private var grp = 0; private var lastLtr = ""; private var lastDir = -1
     private var leftId = -1; private var lDown = false
-    private var leftCX = 0f; private var leftPrevX = 0f; private var leftPrevY = 0f
+    private var leftCX = 0f
     private var consumed = false; private var inBsZone = false; private var holdBs = false
     private var rightId = -1; private var rDown = false
     private var rLX = 0f; private var rLY = 0f; private var rCX = 0f; private var rCY = 0f
@@ -83,6 +119,97 @@ class GlideKeyboardView(context: Context) : View(context) {
     private var symLongPressed = false
     private var symSelectedAltIndex = 0
     private var symBackspaceRepeating = false
+
+    private enum class ShiftState { OFF, ONCE, CAPS }
+    private var shiftState = ShiftState.OFF
+    private var lastShiftTap = 0L
+
+    private data class CursorKey(val id: String, val label: String, val keyCode: Int)
+    private data class CursorKeyBounds(
+        val key: CursorKey,
+        val left: Float, val top: Float, val right: Float, val bottom: Float
+    ) {
+        fun contains(x: Float, y: Float) = x >= left && x < right && y >= top && y < bottom
+        val centerX get() = (left + right) / 2f
+        val centerY get() = (top + bottom) / 2f
+    }
+
+    private val cursorLeft = CursorKey("LEFT", "←", KeyEvent.KEYCODE_DPAD_LEFT)
+    private val cursorUp = CursorKey("UP", "↑", KeyEvent.KEYCODE_DPAD_UP)
+    private val cursorDown = CursorKey("DOWN", "↓", KeyEvent.KEYCODE_DPAD_DOWN)
+    private val cursorRight = CursorKey("RIGHT", "→", KeyEvent.KEYCODE_DPAD_RIGHT)
+    private var cursorId = -1
+    private var cursorStartBounds: CursorKeyBounds? = null
+    private var cursorInside = false
+    private val cursorHandler = Handler(Looper.getMainLooper())
+    private val cursorRepeatRun = object : Runnable {
+        override fun run() {
+            val key = cursorStartBounds?.key
+            if (cursorId != -1 && cursorInside && key != null) {
+                sendCursorKey(key.keyCode)
+                cursorHandler.postDelayed(this, BS_RPT_MS)
+            }
+        }
+    }
+    private val cursorHoldRun = Runnable {
+        if (cursorId != -1 && cursorInside && cursorStartBounds != null) {
+            cursorHandler.post(cursorRepeatRun)
+        }
+    }
+
+    private data class ActionKey(val id: String, val label: String, val alternates: List<String> = emptyList())
+    private data class ActionKeyBounds(
+        val key: ActionKey, val row: Int, val index: Int,
+        val left: Float, val top: Float, val right: Float, val bottom: Float
+    ) {
+        fun contains(x: Float, y: Float) = x >= left && x < right && y >= top && y < bottom
+        val centerX get() = (left + right) / 2f
+        val centerY get() = (top + bottom) / 2f
+    }
+
+    private val utilityKeys = listOf(
+        ActionKey("LANG", "🌐"), ActionKey("SYM", "⌨"), ActionKey("SHIFT", "⇧"),
+        ActionKey("REPEAT", "⧉"), ActionKey("ENTER", "↵"), ActionKey("SETTINGS", "⚙")
+    )
+    private val actionSymbolRows = listOf(
+        listOf(
+            ActionKey("CHAR:.", ".", listOf("…", "·")),
+            ActionKey("CHAR:,", ","),
+            ActionKey("CHAR:?", "?", listOf("¿")),
+            ActionKey("CHAR:!", "!", listOf("¡"))
+        ),
+        listOf(
+            ActionKey("CHAR::", ":"),
+            ActionKey("CHAR:-", "-", listOf("−", "–", "—")),
+            ActionKey("CHAR:\"", "\"", listOf("“", "”", "„")),
+            ActionKey("CHAR:'", "'", listOf("‘", "’", "‚"))
+        ),
+        listOf(
+            ActionKey("CHAR:(", "(", listOf("[", "{", "<")),
+            ActionKey("CHAR:)", ")", listOf("]", "}", ">")),
+            ActionKey("CHAR:;", ";"),
+            ActionKey("CHAR:/", "/")
+        )
+    )
+    private var actionId = -1
+    private var actionStart: ActionKeyBounds? = null
+    private var actionCurrent: ActionKeyBounds? = null
+    private var actionPopupShown = false
+    private var actionSelectedAlt = 0
+    private var actionDownX = 0f
+    private var actionDownY = 0f
+    private var actionTouchX = 0f
+    private var actionTouchY = 0f
+    private val actionHandler = Handler(Looper.getMainLooper())
+    private val actionLongPressRun = Runnable {
+        val key = actionStart?.key
+        if (actionId != -1 && key != null && key.alternates.isNotEmpty() && actionCurrent?.key == key) {
+            actionPopupShown = true
+            actionSelectedAlt = key.alternates.size / 2
+            invalidate()
+        }
+    }
+
     private val symLongPressMs = 420L
     private val symTouchSlop = 7f * dp
     private val symHandler = Handler(Looper.getMainLooper())
@@ -103,7 +230,7 @@ class GlideKeyboardView(context: Context) : View(context) {
             symStartBounds?.key?.action == SymAction.BACKSPACE &&
             symCurrentBounds?.key?.action == SymAction.BACKSPACE) {
             symBackspaceRepeating = true
-            inputConnection?.deleteSurroundingText(1, 0)
+            deleteBackwardOrSelection()
             invalidate()
             symHandler.postDelayed(symBackspaceRepeatRun, BS_RPT_MS)
         }
@@ -113,7 +240,7 @@ class GlideKeyboardView(context: Context) : View(context) {
             if (symMode && symBackspaceRepeating && symDownId != -1 &&
                 symStartBounds?.key?.action == SymAction.BACKSPACE &&
                 symCurrentBounds?.key?.action == SymAction.BACKSPACE) {
-                inputConnection?.deleteSurroundingText(1, 0)
+                deleteBackwardOrSelection()
                 invalidate()
                 symHandler.postDelayed(this, BS_RPT_MS)
             } else {
@@ -132,7 +259,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val bsRun = object : Runnable {
         override fun run() {
             if (holdBs && inBsZone && lDown && leftId != -1 && !symMode) {
-                inputConnection?.deleteSurroundingText(1,0)
+                deleteBackwardOrSelection()
                 invalidate()
                 bsH.postDelayed(this, BS_RPT_MS)
             } else {
@@ -158,11 +285,18 @@ class GlideKeyboardView(context: Context) : View(context) {
         rightId = -1; rDown = false
         consumed = false; inBsZone = false
         lastDir = -1
+        velocitySamples.clear()
+        rTD = 0f; candidateDir = -1
         stopBackspaceRepeat()
+        clearCursorTracking()
     }
 
-    private fun dX() = width  * LEFT_RATIO
+    private fun dX() = width  * leftRatio
     private fun cX() = dX()   * CX_R
+    private fun leftSplitY() = prevH + (height - prevH) * 0.5f
+    private fun idlePointY() = prevH + (leftSplitY() - prevH) * 0.5f
+    private fun isInIdleGestureZone(y: Float): Boolean =
+        y >= prevH && y < leftSplitY()
     private fun clampLeftCX(x: Float): Float {
         val margin = 8f * dp
         return x.coerceIn(margin, (dX() - margin).coerceAtLeast(margin))
@@ -171,8 +305,23 @@ class GlideKeyboardView(context: Context) : View(context) {
     private fun gY(g: Int): Float {
         val n = numG()
         val t = if (n <= 1) 0.5f else Y_TOP + (Y_BOT - Y_TOP) * g.toFloat() / (n - 1)
+        // Once the gyro is active, its groups span the full left-zone height.
         return prevH + (height - prevH) * t
     }
+    private fun cursorKeyLayout(): List<CursorKeyBounds> {
+        val dx = dX()
+        val colW = dx / 3f
+        val top = leftSplitY()
+        val mid = top + (height - top) * 0.5f
+        return listOf(
+            CursorKeyBounds(cursorLeft, 0f, top, colW, height.toFloat()),
+            CursorKeyBounds(cursorUp, colW, top, colW * 2f, mid),
+            CursorKeyBounds(cursorDown, colW, mid, colW * 2f, height.toFloat()),
+            CursorKeyBounds(cursorRight, colW * 2f, top, dx, height.toFloat())
+        )
+    }
+    private fun cursorKeyAt(x: Float, y: Float): CursorKeyBounds? =
+        cursorKeyLayout().firstOrNull { it.contains(x, y) }
     private fun nearestG(y: Float) = (0 until numG()).minByOrNull { abs(gY(it) - y) } ?: 0
 
     private fun p(c: String)  = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(c) }
@@ -184,18 +333,19 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val pBgT = p("#0D0D1A"); private val pBgL  = p("#161628")
     private val pBgR = p("#13202E"); private val pBgRd = p("#0D1118")
     private val pDvH = ps("#1A263A",1f); private val pDvV = ps("#1A263A",1f)
+    private val pGroupDivider = ps("#26344A", 1f)
     private val pPrv = pt(12.5f,"#566380", Paint.Align.RIGHT)
     private val pLng = pt(11f,"#4A9EBA")
-    private val pGAc = pt(19f,"#E2E8F0").also { it.typeface = Typeface.DEFAULT_BOLD }
-    private val pGIn = pt(16f,"#273450")
+    private val pGAc = pt(20f,"#E2E8F0").also { it.typeface = Typeface.DEFAULT_BOLD }
+    private val pGIn = pt(17f,"#273450")
     private val pPBg = p("#192336")
-    private val pRpT = pt(10.5f,"#4ADE80"); private val pBsT = pt(10.5f,"#F87171")
+    private val pRpT = pt(16f,"#4ADE80"); private val pBsT = pt(16f,"#F87171")
     private val pBbB = p("#0E1924"); private val pBbT = pt(10f,"#7EB0E0")
-    private val pHBg = p("#112030").also { it.alpha = 230 }
-    private val pHBd = ps("#213850",1.5f); private val pHDt = p("#213850")
-    private val pHLa = pt(13f,"#5899DA").also { it.typeface = Typeface.DEFAULT_BOLD }
-    private val pHLi = pt(12f,"#304A66")
-    private val pRDt = p("#5899DA").also { it.alpha = 80 }
+    private val pHBg = p("#1C3555").also { it.alpha = 245 }
+    private val pHBd = ps("#4070A0",1.5f); private val pHDt = p("#4070A0")
+    private val pHLa = pt(17f,"#A8D8FF").also { it.typeface = Typeface.DEFAULT_BOLD }
+    private val pHLi = pt(16f,"#6B9FD4")
+    private val pRDt = p("#5888B8").also { it.alpha = 110 }
     private val pSyB = p("#161624"); private val pSBtn = p("#292B30"); private val pSBAl = p("#3A3B40")
     private val pSPressed = p("#414650")
     private val pSTx = pt(23f,"#F1F2F5")
@@ -208,13 +358,39 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val pSPreviewBg = p("#424750")
     private val pSPreviewBorder = ps("#8B94A2",1f)
     private val pSPreviewText = pt(27f,"#FFFFFF")
+    private val pActionBg = p("#1A202A")
+    private val pActionBgActive = p("#30435B")
+    private val pActionShiftOnceBg = p("#29496B")
+    private val pActionShiftCapsBg = p("#4B456F")
+    private val pActionText = pt(18f,"#DCE6F2")
+    private val pActionSmallText = pt(21f,"#DCE6F2")
+    private val pActionEnterText = pt(30f,"#F1F5FA")
+    private val pActionPopupBg = p("#3A3D44")
+    private val pActionPopupBorder = ps("#8794A6", 1f)
+    private val pActionPopupActive = p("#596A82")
+    private val pActionPopupText = pt(19f,"#FFFFFF")
+    private val pCursorText = pt(28f, "#DCE6F2")
+    private val pCursorBorder = ps("#263348", 1f)
 
     override fun onMeasure(w: Int, h: Int) =
-        super.onMeasure(w, MeasureSpec.makeMeasureSpec((HEIGHT_DP*dp).toInt(), MeasureSpec.EXACTLY))
+        super.onMeasure(w, MeasureSpec.makeMeasureSpec((heightDp * dp).toInt(), MeasureSpec.EXACTLY))
 
     // ── Draw ─────────────────────────────────────────────────────────────────
 
+    private fun updateDynamicHintTextSizes() {
+        // Direction labels scale with the configured right-circle radius.
+        val rightScale = hR / (KeyboardSettings.defaultFor("hint_right") * dp)
+        pHLa.textSize = 17f * dp * rightScale
+        pHLi.textSize = 16f * dp * rightScale
+
+        // Repeat/delete labels scale with the configured pill radius.
+        val pillScale = pillRadius / (KeyboardSettings.defaultFor("hint_pill") * dp)
+        pRpT.textSize = 16f * dp * pillScale
+        pBsT.textSize = 16f * dp * pillScale
+    }
+
     override fun onDraw(canvas: Canvas) {
+        updateDynamicHintTextSizes()
         if (symMode) { drawSym(canvas); return }
         val W = width.toFloat(); val H = height.toFloat(); val dx = dX()
         canvas.drawRect(0f,0f,W,prevH,pBgT)
@@ -225,19 +401,35 @@ class GlideKeyboardView(context: Context) : View(context) {
         if (t.isNotEmpty()) canvas.drawText(t, W-8f*dp, prevH/2f+pPrv.textSize/3f, pPrv)
         canvas.drawText(lang, 20f*dp, prevH/2f+pLng.textSize/3f, pLng)
         canvas.save(); canvas.clipRect(0f,prevH,dx,H); drawLeft(canvas,dx); canvas.restore()
-        if (lDown && rDown) { canvas.save(); canvas.clipRect(dx,prevH,W,H); drawRight(canvas,dx,W); canvas.restore() }
+        if (lDown && rDown) {
+            canvas.save(); canvas.clipRect(dx,prevH,W,H); drawRight(canvas,dx,W); canvas.restore()
+        } else if (!lDown) {
+            canvas.save(); canvas.clipRect(dx,prevH,W,H); drawActionBar(canvas); canvas.restore()
+        }
     }
 
     private fun drawLeft(canvas: Canvas, dx: Float) {
         val cx = shownLeftCX()
-        if (!lDown) { canvas.drawText("◎", cx, gY(0)+pGIn.textSize/3f, pGIn); return }
+        if (!lDown) {
+            drawCursorButtons(canvas)
+            if (!disableLeftHints) {
+                canvas.drawText("◎", cx, idlePointY() + pGIn.textSize / 3f, pGIn)
+            }
+            return
+        }
+        if (disableLeftHints) return
+        // Full-width separators between neighboring letter groups.
+        for (g in 0 until numG() - 1) {
+            val dividerY = (gY(g) + gY(g + 1)) * 0.5f
+            canvas.drawLine(0f, dividerY, dx, dividerY, pGroupDivider)
+        }
         (0 until numG()).forEach { g ->
             val gy = gY(g); val act = g == grp
             canvas.drawText(if (g==0) "◎" else "$g", cx, gy+(if (act) pGAc else pGIn).textSize/3f, if (act) pGAc else pGIn)
             if (act && !consumed) {
                 // Відсуваємо підказки від точки контакту й збільшуємо їх.
-                val pillR = PILL_R_DP * dp
-                val pillOffset = sideR + pillR + 13f * dp
+                val pillR = pillRadius
+                val pillOffset = pillOff + pillR + 5f * dp
                 val leftX = (cx - pillOffset).coerceAtLeast(pillR + 4f * dp)
                 val rightX = (cx + pillOffset).coerceAtMost(dx - pillR - 4f * dp)
                 pill(canvas, rightX, gy, lastLtr.uppercase().let { if (it.isEmpty()) "·" else "↺$it" }, pPBg, pRpT)
@@ -246,21 +438,38 @@ class GlideKeyboardView(context: Context) : View(context) {
         }
     }
 
+    private fun drawCursorButtons(canvas: Canvas) {
+        cursorKeyLayout().forEach { bounds ->
+            val active = cursorId != -1 && cursorInside &&
+                    cursorStartBounds?.key?.id == bounds.key.id
+            val rect = RectF(
+                bounds.left + 2f * dp, bounds.top + 2f * dp,
+                bounds.right - 2f * dp, bounds.bottom - 2f * dp
+            )
+            canvas.drawRoundRect(rect, 5f * dp, 5f * dp, if (active) pActionBgActive else pActionBg)
+            canvas.drawRoundRect(rect, 5f * dp, 5f * dp, pCursorBorder)
+            canvas.drawText(bounds.key.label, bounds.centerX, bounds.centerY + pCursorText.textSize / 3f, pCursorText)
+        }
+    }
+
     private fun pill(canvas: Canvas, cx: Float, cy: Float, t: String, bg: Paint, tx: Paint) {
-        canvas.drawCircle(cx, cy, PILL_R_DP*dp, bg)
+        canvas.drawCircle(cx, cy, pillRadius, bg)
         canvas.drawText(t, cx, cy+tx.textSize/3f, tx)
     }
 
     private fun bubble(canvas: Canvas, zoneW: Float, cy: Float, g: Int) {
         val ls = letters().getOrNull(g) ?: return
-        val bcx = zoneW*0.83f; val fs = 10f*dp
-        val cw = 12f*dp; val rh = 11f*dp; val pad = 3f*dp
-        val tw = 4*cw+pad; val th = 2*rh+pad
+        val scale = hBubble
+        val bcx = zoneW*0.83f; val fs = 10f*dp*scale
+        val cw = 12f*dp*scale; val rh = 11f*dp*scale; val pad = 3f*dp*scale
+        val rows = 3
+        val cols = ceil(ls.size / rows.toFloat()).toInt().coerceAtLeast(1)
+        val tw = cols*cw+pad; val th = rows*rh+pad
         val r = RectF(bcx-tw/2f, cy-th/2f, bcx+tw/2f, cy+th/2f)
         canvas.drawRoundRect(r, 4f*dp, 4f*dp, pBbB)
-        val tpN = Paint(pBbT).apply { textSize = 8f*dp }
+        val tpN = Paint(pBbT).apply { textSize = 8f*dp*scale }
         ls.forEachIndexed { i, l ->
-            val lx = r.left+(i%4)*cw+cw/2f; val ly = r.top+(i/4)*rh+rh/2f
+            val lx = r.left+(i%cols)*cw+cw/2f; val ly = r.top+(i/cols)*rh+rh/2f
             when (l) {
                 null -> {}
                 LK   -> canvas.drawText("🌐", lx, ly+tpN.textSize/3f, tpN)
@@ -271,9 +480,56 @@ class GlideKeyboardView(context: Context) : View(context) {
     }
 
     private fun drawRight(canvas: Canvas, dx: Float, W: Float) {
-        canvas.drawCircle(rCX, rCY, 15f*dp, pRDt)
-        val hx = rCX.coerceIn(dx+hR+4f*dp, W-hR-4f*dp)
-        val hy = (rCY-hUp).coerceIn(prevH+hR+4f*dp, height.toFloat()-hR-4f*dp)
+        if (disableRightHints) return
+        val touchRadius = 15f * dp
+        canvas.drawCircle(rCX, rCY, touchRadius, pRDt)
+
+        // Use the configured hint radius for both screen-edge limits and the
+        // early collision threshold, so changing the circle size also changes
+        // when it moves away from the finger.
+        val edgeGap = hR + 4f * dp
+        val minX = dx + edgeGap
+        val maxX = (W - edgeGap).coerceAtLeast(minX)
+        val minY = prevH + edgeGap
+        val maxY = (height.toFloat() - edgeGap).coerceAtLeast(minY)
+        // A little extra clearance makes the sideways move happen earlier.
+        val safeDistance = hR + touchRadius + 14f * dp
+
+        var hx = rCX.coerceIn(minX, maxX)
+        var hy = (rCY - hUp).coerceIn(minY, maxY)
+        val topDistance = hypot((hx - rCX).toDouble(), (hy - rCY).toDouble()).toFloat()
+
+        // Move sideways before the circles touch. Never place the hint below
+        // the finger; prefer the side with more room while respecting bounds.
+        if (topDistance < safeDistance) {
+            val sideY = rCY.coerceIn(minY, maxY)
+            // Move sideways by approximately the same distance as the normal
+            // above-finger offset, instead of barely clearing the finger.
+            val horizontalOffset = max(hUp, safeDistance)
+            val leftX = (rCX - horizontalOffset).coerceIn(minX, maxX)
+            val rightX = (rCX + horizontalOffset).coerceIn(minX, maxX)
+            val leftDistance = hypot((leftX - rCX).toDouble(), (sideY - rCY).toDouble()).toFloat()
+            val rightDistance = hypot((rightX - rCX).toDouble(), (sideY - rCY).toDouble()).toFloat()
+            val leftClear = leftDistance >= safeDistance
+            val rightClear = rightDistance >= safeDistance
+            val leftRoom = rCX - minX
+            val rightRoom = maxX - rCX
+            val moveLeft = when {
+                leftClear && !rightClear -> true
+                rightClear && !leftClear -> false
+                leftClear && rightClear -> leftRoom >= rightRoom
+                else -> leftDistance >= rightDistance
+            }
+            hx = if (moveLeft) leftX else rightX
+            // If the side is tight, keep the bubble above the finger enough
+            // to preserve the clearance; never compensate by moving it below.
+            val actualHorizontalDistance = abs(hx - rCX)
+            val neededVertical = sqrt(
+                (safeDistance * safeDistance - actualHorizontalDistance * actualHorizontalDistance).coerceAtLeast(0f)
+            )
+            hy = (rCY - neededVertical).coerceIn(minY, sideY)
+        }
+
         canvas.drawCircle(hx,hy,hR,pHBg); canvas.drawCircle(hx,hy,hR,pHBd); canvas.drawCircle(hx,hy,3f*dp,pHDt)
         val ls = letters().getOrNull(grp) ?: return
         dv.forEachIndexed { i, (vx,vy) ->
@@ -282,6 +538,256 @@ class GlideKeyboardView(context: Context) : View(context) {
             val d = when(l) { LK -> "🌐"; SK -> "⌨"; else -> l.uppercase() }
             canvas.drawText(d, hx+(vx/n)*hLR, hy+(vy/n)*hLR+pHLa.textSize/3f, if (i==lastDir) pHLa else pHLi)
         }
+    }
+
+    // ── Action bar shown when the left thumb is released ───────────────────────
+
+    private fun actionLayout(): List<ActionKeyBounds> {
+        val dx = dX()
+        val zoneW = (width - dx).coerceAtLeast(1f)
+        val availableH = (height - prevH).coerceAtLeast(1f)
+        // Верхні два ряди з утилітами нижчі; дві пунктуаційні смуги внизу більші.
+        val utilityRowH = availableH * 0.18f
+        val symbolRowH = (availableH - utilityRowH * 2f) / actionSymbolRows.size.coerceAtLeast(1)
+        val utilityKeyW = zoneW / 3f
+        val result = ArrayList<ActionKeyBounds>()
+        utilityKeys.forEachIndexed { index, key ->
+            val row = index / 3
+            val col = index % 3
+            val left = dx + col * utilityKeyW
+            val top = prevH + row * utilityRowH
+            result += ActionKeyBounds(key, row, col, left, top, left + utilityKeyW, top + utilityRowH)
+        }
+        actionSymbolRows.forEachIndexed { rowIndex, row ->
+            val yTop = prevH + utilityRowH * 2f + rowIndex * symbolRowH
+            val keyW = zoneW / row.size
+            row.forEachIndexed { index, key ->
+                val left = dx + index * keyW
+                result += ActionKeyBounds(key, rowIndex + 2, index, left, yTop, left + keyW, yTop + symbolRowH)
+            }
+        }
+        return result
+    }
+
+    private fun actionKeyAt(x: Float, y: Float): ActionKeyBounds? {
+        val layout = actionLayout()
+        layout.firstOrNull { it.contains(x, y) }?.let { return it }
+        // Slightly forgiving hit areas for fast taps near the gaps between keycaps.
+        val slop = 5f * dp
+        return layout.asSequence().map { key ->
+            val dx = when { x < key.left -> key.left - x; x >= key.right -> x - key.right; else -> 0f }
+            val dy = when { y < key.top -> key.top - y; y >= key.bottom -> y - key.bottom; else -> 0f }
+            Triple(key, dx * dx + dy * dy, max(dx, dy))
+        }.filter { it.third <= slop }.minByOrNull { it.second }?.first
+    }
+
+    private fun drawActionBar(canvas: Canvas) {
+        val layout = actionLayout()
+        layout.forEach { bounds ->
+            val isActive = actionId != -1 && actionCurrent?.key?.id == bounds.key.id && actionCurrent?.row == bounds.row
+            val isShift = bounds.key.id == "SHIFT"
+            val shiftBg = when {
+                isActive -> pActionBgActive
+                isShift && shiftState == ShiftState.ONCE -> pActionShiftOnceBg
+                isShift && shiftState == ShiftState.CAPS -> pActionShiftCapsBg
+                else -> pActionBg
+            }
+            val rect = RectF(bounds.left + 2f * dp, bounds.top + 2f * dp, bounds.right - 2f * dp, bounds.bottom - 2f * dp)
+            canvas.drawRoundRect(rect, 5f * dp, 5f * dp, if (isShift) shiftBg else if (isActive) pActionBgActive else pActionBg)
+            if (isShift) {
+                drawShiftIcon(canvas, bounds, shiftState)
+            } else if (bounds.key.id == "ENTER") {
+                // Enter/paragraph icon is intentionally larger than the other utility icons.
+                canvas.drawText("↵", bounds.centerX, bounds.centerY + pActionEnterText.textSize * 0.34f, pActionEnterText)
+            } else {
+                val paint = if (bounds.row <= 1) pActionText else pActionSmallText
+                val oldSize = paint.textSize
+                val maxWidth = (bounds.right - bounds.left - 6f * dp).coerceAtLeast(1f)
+                if (paint.measureText(bounds.key.label) > maxWidth) {
+                    paint.textSize = min(paint.textSize, maxWidth / bounds.key.label.length.coerceAtLeast(1))
+                }
+                canvas.drawText(bounds.key.label, bounds.centerX, bounds.centerY + paint.textSize / 3f, paint)
+                paint.textSize = oldSize
+            }
+        }
+        if (actionPopupShown) drawActionPopup(canvas)
+    }
+
+    /** OFF = контурна стрілка, ONCE = заповнена, CAPS = заповнена з рискою блокування. */
+    private fun drawShiftIcon(canvas: Canvas, bounds: ActionKeyBounds, state: ShiftState) {
+        val cx = bounds.centerX
+        val cy = bounds.centerY - 1f * dp
+        val size = (min(bounds.right - bounds.left, bounds.bottom - bounds.top) * 0.46f - 3f * dp)
+            .coerceAtLeast(1f * dp)
+        val path = Path().apply {
+            moveTo(cx, cy - size * 0.52f)
+            lineTo(cx + size * 0.43f, cy - size * 0.04f)
+            lineTo(cx + size * 0.20f, cy - size * 0.04f)
+            lineTo(cx + size * 0.20f, cy + size * 0.43f)
+            lineTo(cx - size * 0.20f, cy + size * 0.43f)
+            lineTo(cx - size * 0.20f, cy - size * 0.04f)
+            lineTo(cx - size * 0.43f, cy - size * 0.04f)
+            close()
+        }
+        val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(if (state == ShiftState.CAPS) "#FFFFFF" else "#DCE6F2")
+            style = if (state == ShiftState.OFF) Paint.Style.STROKE else Paint.Style.FILL
+            strokeWidth = 2.2f * dp
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawPath(path, iconPaint)
+        if (state == ShiftState.CAPS) {
+            val underline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFFFFF")
+                strokeWidth = 2.4f * dp
+                strokeCap = Paint.Cap.ROUND
+            }
+            canvas.drawLine(cx - size * 0.28f, cy + size * 0.56f, cx + size * 0.28f, cy + size * 0.56f, underline)
+        }
+    }
+
+    private fun actionPopupRect(): RectF? {
+        val start = actionStart ?: return null
+        val count = start.key.alternates.size
+        if (count == 0) return null
+        val cellW = 39f * dp
+        val popupH = 43f * dp
+        val gap = 5f * dp
+        val totalW = count * cellW + gap * 2f
+        val zoneLeft = dX() + 3f * dp
+        val maxLeft = (width - totalW - 3f * dp).coerceAtLeast(zoneLeft)
+        val left = (start.centerX - totalW / 2f).coerceIn(zoneLeft, maxLeft)
+        val top = (start.top - popupH - 5f * dp).coerceAtLeast(prevH + 2f * dp)
+        return RectF(left, top, left + totalW, top + popupH)
+    }
+
+    private fun actionPopupIndexAtX(x: Float): Int? {
+        val rect = actionPopupRect() ?: return null
+        val count = actionStart?.key?.alternates?.size ?: return null
+        if (count == 0) return null
+        val cellW = 39f * dp
+        val gap = 5f * dp
+        val firstCenter = rect.left + gap + cellW / 2f
+        return ((x - firstCenter) / cellW).roundToInt().coerceIn(0, count - 1)
+    }
+
+    private fun drawActionPopup(canvas: Canvas) {
+        val start = actionStart ?: return
+        val rect = actionPopupRect() ?: return
+        canvas.drawRoundRect(rect, 8f * dp, 8f * dp, pActionPopupBg)
+        canvas.drawRoundRect(rect, 8f * dp, 8f * dp, pActionPopupBorder)
+        val cellW = 39f * dp
+        val gap = 5f * dp
+        start.key.alternates.forEachIndexed { index, alt ->
+            val left = rect.left + gap + index * cellW
+            val cell = RectF(left, rect.top + 3f * dp, left + cellW - dp, rect.bottom - 3f * dp)
+            if (index == actionSelectedAlt) canvas.drawRoundRect(cell, 5f * dp, 5f * dp, pActionPopupActive)
+            canvas.drawText(alt, cell.centerX(), cell.centerY() + pActionPopupText.textSize / 3f, pActionPopupText)
+        }
+    }
+
+    private fun beginActionTouch(id: Int, x: Float, y: Float) {
+        actionId = id
+        actionDownX = x; actionDownY = y; actionTouchX = x; actionTouchY = y
+        actionStart = actionKeyAt(x, y)
+        actionCurrent = actionStart
+        actionPopupShown = false
+        actionSelectedAlt = 0
+        actionHandler.removeCallbacks(actionLongPressRun)
+        if (actionStart?.key?.alternates?.isNotEmpty() == true) {
+            actionHandler.postDelayed(actionLongPressRun, 420L)
+        }
+        invalidate()
+    }
+
+    private fun moveActionTouch(ev: MotionEvent) {
+        if (actionId == -1) return
+        val idx = ev.findPointerIndex(actionId)
+        if (idx == -1) return
+        val x = ev.getX(idx); val y = ev.getY(idx)
+        actionTouchX = x; actionTouchY = y
+        if (actionPopupShown) {
+            actionPopupIndexAtX(x)?.let { actionSelectedAlt = it }
+        } else {
+            actionCurrent = actionKeyAt(x, y)
+            if (hypot((x - actionDownX).toDouble(), (y - actionDownY).toDouble()) > (9f * dp).toDouble()) {
+                actionHandler.removeCallbacks(actionLongPressRun)
+            }
+            if (actionCurrent?.key != actionStart?.key) actionHandler.removeCallbacks(actionLongPressRun)
+        }
+        invalidate()
+    }
+
+    private fun finishActionTouch(id: Int, x: Float, y: Float) {
+        if (id != actionId) return
+        actionHandler.removeCallbacks(actionLongPressRun)
+        if (actionPopupShown) {
+            actionPopupIndexAtX(x)?.let { actionSelectedAlt = it }
+            actionStart?.key?.alternates?.getOrNull(actionSelectedAlt)?.let { inputConnection?.commitText(it, 1) }
+        } else {
+            val releasedOnKey = actionKeyAt(x, y)
+            if (releasedOnKey != null) {
+                performAction(releasedOnKey.key)
+            } else {
+                val drift = hypot((x - actionDownX).toDouble(), (y - actionDownY).toDouble())
+                if (drift <= (12f * dp).toDouble()) actionStart?.let { performAction(it.key) }
+            }
+        }
+        clearActionTracking()
+        invalidate()
+    }
+
+    private fun clearActionTracking() {
+        actionHandler.removeCallbacks(actionLongPressRun)
+        actionId = -1
+        actionStart = null; actionCurrent = null
+        actionPopupShown = false; actionSelectedAlt = 0
+    }
+
+    private fun performAction(key: ActionKey) {
+        when (key.id) {
+            "LANG" -> {
+                langIdx = (langIdx + 1) % langOrder.size
+                grp = grp.coerceIn(0, numG() - 1)
+                lastLtr = ""
+            }
+            "SYM" -> {
+                symMode = true
+                symPage = 0
+                clearSymTracking()
+                resetGesturePointers()
+            }
+            "SHIFT" -> {
+                val now = android.os.SystemClock.uptimeMillis()
+                shiftState = when {
+                    shiftState == ShiftState.ONCE && now - lastShiftTap < 400L -> ShiftState.CAPS
+                    shiftState == ShiftState.OFF -> ShiftState.ONCE
+                    else -> ShiftState.OFF
+                }
+                lastShiftTap = now
+            }
+            "REPEAT" -> repeatLastWord()
+            "ENTER" -> inputConnection?.commitText("\n", 1)
+            "SETTINGS" -> {
+                runCatching {
+                    context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+            else -> if (key.id.startsWith("CHAR:")) inputConnection?.commitText(key.label, 1)
+        }
+        invalidate()
+    }
+
+    private fun repeatLastWord() {
+        val before = try { inputConnection?.getTextBeforeCursor(200, 0)?.toString() } catch (_: Exception) { null } ?: return
+        if (before.isEmpty()) return
+        val hasTrailingSpace = before.endsWith(" ")
+        val base = before.trimEnd(' ')
+        val wordStart = base.indexOfLast { it.isWhitespace() } + 1
+        val word = base.substring(wordStart)
+        if (word.isEmpty()) return
+        inputConnection?.commitText(if (hasTrailingSpace) "$word " else " $word", 1)
     }
 
     // ── Symbol keyboard ───────────────────────────────────────────────────────
@@ -350,13 +856,13 @@ class GlideKeyboardView(context: Context) : View(context) {
             ),
             listOf(
                 SymKey("?123", weight = 1.42f, action = SymAction.PAGE),
-                SymKey("%", weight = 0.9f, alternates = listOf("‰", "‱")),
-                SymKey("©", weight = 0.9f, alternates = listOf("ⓒ")),
-                SymKey("®", weight = 0.9f, alternates = listOf("ⓡ")),
-                SymKey("™", weight = 0.9f, alternates = listOf("℠")),
-                SymKey("✓", weight = 0.9f, alternates = listOf("✔", "☑")),
-                SymKey("[", weight = 0.9f, alternates = listOf("(", "{")),
-                SymKey("]", weight = 0.9f, alternates = listOf(")", "}")),
+                SymKey("%", weight = 0.78f, alternates = listOf("‰", "‱")),
+                SymKey("©", weight = 0.78f, alternates = listOf("ⓒ")),
+                SymKey("®", weight = 0.78f, alternates = listOf("ⓡ")),
+                SymKey("™", weight = 0.78f, alternates = listOf("℠")),
+                SymKey("✓", weight = 0.78f, alternates = listOf("✔", "☑")),
+                SymKey("[", weight = 0.92f, alternates = listOf("(", "{")),
+                SymKey("]", weight = 0.92f, alternates = listOf(")", "}")),
                 SymKey("⌫", weight = 1.35f, action = SymAction.BACKSPACE)
             )
         )
@@ -364,12 +870,20 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     private fun bottomSymKeys() = listOf(
         SymKey("ABC", weight = 1.35f, action = SymAction.ABC),
-        SymKey(",", weight = 0.8f, alternates = listOf("،", "，", "、")),
+        if (symPage == 0) {
+            SymKey(",", weight = 0.8f, alternates = listOf("،", "‚"))
+        } else {
+            SymKey("<", weight = 0.8f, alternates = listOf("≤", "≪"))
+        },
         SymKey(
             when (lang) { "УКР" -> "Українська"; "ENG" -> "English"; else -> "Русский" },
             value = " ", weight = 4f, action = SymAction.SPACE
         ),
-        SymKey(".", weight = 0.8f, alternates = listOf("…", "·")),
+        if (symPage == 0) {
+            SymKey(".", weight = 0.8f, alternates = listOf("…", "·"))
+        } else {
+            SymKey(">", weight = 0.8f, alternates = listOf("≥", "≫"))
+        },
         SymKey("↵", value = "\n", weight = 1.35f, action = SymAction.ENTER)
     )
 
@@ -680,7 +1194,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     private fun performSymKey(key: SymKey) {
         when (key.action) {
             SymAction.INPUT -> inputConnection?.commitText(key.value, 1)
-            SymAction.BACKSPACE -> inputConnection?.deleteSurroundingText(1, 0)
+            SymAction.BACKSPACE -> deleteBackwardOrSelection()
             SymAction.ABC -> {
                 clearSymTracking()
                 symMode = false
@@ -696,6 +1210,60 @@ class GlideKeyboardView(context: Context) : View(context) {
         invalidate()
     }
 
+    private fun sendCursorKey(keyCode: Int) {
+        val ic = inputConnection ?: return
+        try {
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+        } catch (_: Exception) { }
+    }
+
+    private fun beginCursorTouch(id: Int, x: Float, y: Float) {
+        val hit = cursorKeyAt(x, y) ?: return
+        cursorId = id
+        cursorStartBounds = hit
+        cursorInside = true
+        sendCursorKey(hit.key.keyCode)
+        cursorHandler.removeCallbacks(cursorHoldRun)
+        cursorHandler.removeCallbacks(cursorRepeatRun)
+        cursorHandler.postDelayed(cursorHoldRun, BS_HOLD_MS)
+        invalidate()
+    }
+
+    private fun moveCursorTouch(ev: MotionEvent) {
+        if (cursorId == -1) return
+        val idx = ev.findPointerIndex(cursorId)
+        if (idx == -1) {
+            clearCursorTracking()
+            invalidate()
+            return
+        }
+        val hit = cursorKeyAt(ev.getX(idx), ev.getY(idx))
+        val wasInside = cursorInside
+        cursorInside = hit?.key?.id == cursorStartBounds?.key?.id
+        if (!cursorInside) {
+            cursorHandler.removeCallbacks(cursorHoldRun)
+            cursorHandler.removeCallbacks(cursorRepeatRun)
+        } else if (!wasInside) {
+            cursorHandler.removeCallbacks(cursorHoldRun)
+            cursorHandler.removeCallbacks(cursorRepeatRun)
+            cursorHandler.postDelayed(cursorHoldRun, BS_HOLD_MS)
+        }
+        invalidate()
+    }
+
+    private fun stopCursorRepeat() {
+        cursorHandler.removeCallbacks(cursorHoldRun)
+        cursorHandler.removeCallbacks(cursorRepeatRun)
+    }
+
+    private fun clearCursorTracking() {
+        stopCursorRepeat()
+        cursorId = -1
+        cursorStartBounds = null
+        cursorInside = false
+    }
+
     // ── Touch ────────────────────────────────────────────────────────────────
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
@@ -703,34 +1271,65 @@ class GlideKeyboardView(context: Context) : View(context) {
         val dx = dX()
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                val idx = ev.actionIndex; val id = ev.getPointerId(idx)
+                val idx = ev.actionIndex
+                val id = ev.getPointerId(idx)
                 val x = ev.getX(idx); val y = ev.getY(idx)
-                if (x < dx && leftId == -1) {
-                    leftId=id; lDown=true
-                    leftCX=clampLeftCX(x); leftPrevX=x; leftPrevY=y
-                    consumed=false; inBsZone=false; stopBackspaceRepeat()
-                    grp=nearestG(y); invalidate()
-                } else if (x >= dx && rightId == -1 && lDown) {
-                    rightId=id; rDown=true; rLX=x; rLY=y; rCX=x; rCY=y; lastDir=-1; invalidate()
+                if (ev.actionMasked == MotionEvent.ACTION_POINTER_DOWN && actionId != -1) {
+                    clearActionTracking()
+                }
+                when {
+                    x < dx && leftId == -1 && cursorId == -1 && isInIdleGestureZone(y) -> {
+                        leftId = id; lDown = true
+                        // Keep dynamic zero calibration at pickup and group transitions only.
+                        leftCX = clampLeftCX(x)
+                        consumed = false; inBsZone = false; stopBackspaceRepeat()
+                        grp = nearestG(y)
+                        lastDir = -1
+                        invalidate()
+                    }
+                    x < dx && leftId == -1 && cursorId == -1 && cursorKeyAt(x, y) != null -> {
+                        beginCursorTouch(id, x, y)
+                    }
+                    x >= dx && rightId == -1 && lDown -> {
+                        rightId = id; rDown = true
+                        rLX = x; rLY = y; rCX = x; rCY = y; lastDir = -1
+                        resetVelocityWindow(x, y, ev.eventTime)
+                        invalidate()
+                    }
+                    x >= dx && !lDown && rightId == -1 && actionId == -1 -> beginActionTouch(id, x, y)
                 }
             }
-            MotionEvent.ACTION_MOVE -> { moveL(ev); moveR(ev) }
+            MotionEvent.ACTION_MOVE -> {
+                moveL(ev)
+                moveR(ev)
+                moveActionTouch(ev)
+                moveCursorTouch(ev)
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                when (ev.getPointerId(ev.actionIndex)) {
-                    leftId  -> {
-                        leftId=-1; lDown=false; consumed=false; inBsZone=false
+                val idx = ev.actionIndex
+                val id = ev.getPointerId(idx)
+                val x = ev.getX(idx); val y = ev.getY(idx)
+                when (id) {
+                    leftId -> {
+                        leftId = -1; lDown = false; consumed = false; inBsZone = false
                         stopBackspaceRepeat(); invalidate()
                     }
                     rightId -> {
-                        if (lDown) inputConnection?.commitText(" ",1) // відпускання правого пальця = пробіл
-                        rightId=-1; rDown=false; lastDir=-1; invalidate()
+                        inputConnection?.commitText(" ", 1) // releasing the right thumb always inserts a space
+                        rightId = -1; rDown = false; lastDir = -1
+                        velocitySamples.clear()
+                        rLastEventTime = 0L; rTD = 0f; candidateDir = -1
+                        invalidate()
                     }
+                    actionId -> finishActionTouch(id, x, y)
+                    cursorId -> { clearCursorTracking(); invalidate() }
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
-                leftId=-1; lDown=false; rightId=-1; rDown=false
-                consumed=false; inBsZone=false; lastDir=-1
-                stopBackspaceRepeat(); invalidate()
+                leftId = -1; lDown = false; rightId = -1; rDown = false
+                consumed = false; inBsZone = false; lastDir = -1
+                velocitySamples.clear(); rLastEventTime = 0L; rTD = 0f; candidateDir = -1
+                stopBackspaceRepeat(); clearActionTracking(); clearCursorTracking(); invalidate()
             }
         }
         return true
@@ -740,23 +1339,19 @@ class GlideKeyboardView(context: Context) : View(context) {
         if (leftId == -1) return
         val idx = ev.findPointerIndex(leftId); if (idx == -1) return
         val x = ev.getX(idx); val y = ev.getY(idx)
-        val stepX = x - leftPrevX
-        val stepY = y - leftPrevY
-
-        // Центр стежить за горизонтальним дрейфом пальця під час руху вгору/вниз.
-        // Майже горизонтальний рух не рухає сам центр, щоб зберегти жест стирання/повтору.
-        if (abs(stepY) > abs(stepX) * 0.35f) {
-            leftCX = clampLeftCX(leftCX + stepX)
-        }
-        leftPrevX = x; leftPrevY = y
-
         val ng = nearestG(y)
         if (ng != grp) {
-            grp=ng
-            leftCX=clampLeftCX(x)
+            grp = ng
+            // Dynamic zero calibration happens at the group transition only.
+            leftCX = clampLeftCX(x)
             consumed=false; inBsZone=false
             stopBackspaceRepeat()
-            lastDir=-1; invalidate(); return
+            lastDir = -1
+            if (rightId != -1) {
+                val rightIndex = ev.findPointerIndex(rightId)
+                if (rightIndex != -1) resetVelocityWindow(ev.getX(rightIndex), ev.getY(rightIndex), ev.eventTime)
+            }
+            invalidate(); return
         }
 
         val ddx = x - leftCX
@@ -780,7 +1375,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         when {
             ddx < -sideR -> if (!inBsZone) {
                 inBsZone=true; consumed=true
-                inputConnection?.deleteSurroundingText(1,0)
+                deleteBackwardOrSelection()
                 bsH.postDelayed(bsHoldRun, BS_HOLD_MS)
                 invalidate()
             }
@@ -791,44 +1386,141 @@ class GlideKeyboardView(context: Context) : View(context) {
         }
     }
 
+    private fun deleteBackwardOrSelection() {
+        val ic = inputConnection ?: return
+        val selected = try { ic.getSelectedText(0)?.toString() } catch (_: Exception) { null }
+        if (!selected.isNullOrEmpty()) ic.commitText("", 1)
+        else ic.deleteSurroundingText(1, 0)
+    }
+
+    private fun applyShift(letter: String): String {
+        val output = if (shiftState != ShiftState.OFF) letter.uppercase() else letter
+        if (shiftState == ShiftState.ONCE) shiftState = ShiftState.OFF
+        return output
+    }
+
+    private data class VelocitySample(val x: Float, val y: Float, val timeMs: Long)
+    private val velocitySamples = ArrayList<VelocitySample>()
+    private val velocityWindowMs = 32L
+    private var rPX = 0f
+    private var rPY = 0f
+    private var rLastEventTime = 0L
+    private var rTD = 0f
+    private var rSegmentStartX = 0f
+    private var rSegmentStartY = 0f
+    private var candidateDir = -1
+
+    private fun resetVelocityWindow(x: Float, y: Float, timeMs: Long) {
+        velocitySamples.clear()
+        velocitySamples += VelocitySample(x, y, timeMs)
+        rPX = x
+        rPY = y
+        rLastEventTime = timeMs
+        rSegmentStartX = x
+        rSegmentStartY = y
+        rTD = 0f
+        candidateDir = -1
+    }
+
     private fun moveR(ev: MotionEvent) {
         if (rightId == -1 || !lDown) return
         val idx = ev.findPointerIndex(rightId); if (idx == -1) return
-        val x = ev.getX(idx); val y = ev.getY(idx); rCX=x; rCY=y
-        val dx = x-rLX; val dy = y-rLY
-        if (sqrt(dx*dx+dy*dy) < gestR) { invalidate(); return }
-        val dir = dirOf(dx,dy)
-        if (dir == lastDir) { rLX=x; rLY=y; invalidate(); return }
-        val l = letAt(grp,dir)
-        when {
-            l == null -> { rLX=x; rLY=y; invalidate() }
-            l == LK   -> {
-                langIdx=(langIdx+1) % langOrder.size
-                grp=grp.coerceAtMost(langData[lang]?.lastIndex ?: 0)
-                lastLtr=""; lastDir=dir; rLX=x; rLY=y; invalidate()
-            }
-            l == SK   -> {
-                symMode = true
-                symIgnoreUntilAllUp = true
-                clearSymTracking()
-                stopBackspaceRepeat()
-                invalidate()
-            }
-            else      -> { inputConnection?.commitText(l,1); lastLtr=l; lastDir=dir; rLX=x; rLY=y; invalidate() }
+        val x = ev.getX(idx); val y = ev.getY(idx)
+        rCX = x; rCY = y
+
+        val previousX = rPX
+        val previousY = rPY
+        val rawDx = x - previousX
+        val rawDy = y - previousY
+        val eventTime = ev.eventTime
+        val dtMs = (eventTime - rLastEventTime).coerceAtLeast(1L)
+        val step = hypot(rawDx.toDouble(), rawDy.toDouble()).toFloat()
+        rPX = x; rPY = y; rLastEventTime = eventTime
+
+        velocitySamples += VelocitySample(x, y, eventTime)
+        // Keep a recent 32 ms window. If there was a long pause, do not let
+        // stale coordinates from before the pause distort the current velocity.
+        while (velocitySamples.size > 2 && eventTime - velocitySamples[1].timeMs > velocityWindowMs) {
+            velocitySamples.removeAt(0)
         }
+        if (velocitySamples.size >= 2 && eventTime - velocitySamples[0].timeMs > velocityWindowMs) {
+            velocitySamples.removeAt(0)
+        }
+        val first = velocitySamples.firstOrNull() ?: VelocitySample(previousX, previousY, eventTime)
+        val windowDtMs = eventTime - first.timeMs
+        val windowDx = x - first.x
+        val windowDy = y - first.y
+        val windowDistance = hypot(windowDx.toDouble(), windowDy.toDouble()).toFloat()
+        val windowSpeedDpS = if (windowDtMs >= 8L) {
+            (windowDistance / dp) * 1000f / windowDtMs.toFloat()
+        } else {
+            (step / dp) * 1000f / dtMs.toFloat()
+        }
+
+        // Direction estimation is independent of the speed threshold. Use the
+        // recent displacement window whenever it contains enough real movement;
+        // setting gesture speed to 0 disables only the speed gate, not smoothing.
+        val hasWindowVector = windowDtMs >= 8L && windowDistance >= 0.35f * dp
+        val directionDx = if (hasWindowVector) windowDx else rawDx
+        val directionDy = if (hasWindowVector) windowDy else rawDy
+        if (hypot(directionDx.toDouble(), directionDy.toDouble()) < 0.2f * dp) {
+            invalidate()
+            return
+        }
+        val direction = dirOf(directionDx, directionDy, candidateDir)
+
+        if (direction != candidateDir) {
+            candidateDir = direction
+            // Measure progress from the point at which this direction was detected.
+            rSegmentStartX = previousX
+            rSegmentStartY = previousY
+        }
+        rTD = hypot((x - rSegmentStartX).toDouble(), (y - rSegmentStartY).toDouble()).toFloat()
+
+        val speedPasses = minGestureSpeedDpS <= 0f || windowSpeedDpS >= minGestureSpeedDpS
+        // Distance and speed are independent gates. Setting speed to 0 disables
+        // only the time filter; gestR still protects against accidental micro-movements.
+        if (rTD < gestR || !speedPasses) { invalidate(); return }
+
+        if (candidateDir == lastDir) {
+            // Repeating a direction is not a second key; restart tracking at the current point.
+            resetVelocityWindow(x, y, eventTime)
+            invalidate()
+            return
+        }
+
+        val selectedDirection = candidateDir
+        val letter = letAt(grp, selectedDirection)
+        if (letter != null) {
+            val committed = applyShift(letter)
+            inputConnection?.commitText(committed, 1)
+            lastLtr = committed
+            lastDir = selectedDirection
+        }
+        // Drop pre-commit motion history so a quick turn (e.g. left then up)
+        // is measured as the new movement rather than blended with the previous swipe.
+        resetVelocityWindow(x, y, eventTime)
+        invalidate()
     }
 
-    private fun dirOf(dx: Float, dy: Float): Int {
-        val ax = abs(dx); val ay = abs(dy)
-        // Трохи ширші сектори для вертикалі/горизонталі зменшують хибні діагоналі
-        // через мікрозсуви пальця, не збільшуючи GEST_DP.
-        return when {
-            ax >= ay * 2f -> if (dx >= 0f) 2 else 6  // → ←
-            ay >= ax * 2f -> if (dy >= 0f) 4 else 0  // ↓ ↑
-            dx >= 0f && dy < 0f -> 1                // ↗
-            dx >= 0f && dy >= 0f -> 3               // ↘
-            dx < 0f && dy >= 0f -> 5                // ↙
-            else -> 7                               // ↖
+    private fun dirOf(dx: Float, dy: Float, previousDir: Int = -1): Int {
+        // Eight equal 45-degree sectors. Previously the 1.65 ratio made cardinals
+        // about 62 degrees wide while diagonals were only about 28 degrees wide.
+        // The narrow diagonal sectors caused candidateDir to reset its distance
+        // progress repeatedly, which felt like a higher threshold for diagonals.
+        var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        if (angle < 0f) angle += 360f
+        val centers = floatArrayOf(270f, 315f, 0f, 45f, 90f, 135f, 180f, 225f)
+        fun angleDistance(a: Float, b: Float): Float {
+            val delta = abs(a - b) % 360f
+            return min(delta, 360f - delta)
         }
+
+        // A small hysteresis prevents touch jitter around sector borders from
+        // switching candidates every event and restarting the distance counter.
+        if (previousDir in 0..7 && angleDistance(angle, centers[previousDir]) <= 25f) {
+            return previousDir
+        }
+        return centers.indices.minByOrNull { angleDistance(angle, centers[it]) } ?: 2
     }
 }
