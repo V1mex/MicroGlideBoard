@@ -3,6 +3,7 @@ package app.vimex.microglideboard
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.*
 import android.os.Build
 import android.os.Handler
@@ -34,10 +35,16 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val dp = resources.displayMetrics.density
     private val prefs = context.getSharedPreferences("glide_kb", Context.MODE_PRIVATE)
     private val hintToggleListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "disable_left_hints" || key == "disable_right_hints") {
-            disableLeftHints = KeyboardSettings.readBoolean(prefs, "disable_left_hints")
-            disableRightHints = KeyboardSettings.readBoolean(prefs, "disable_right_hints")
-            invalidate()
+        when (key) {
+            "disable_left_hints", "disable_right_hints" -> {
+                disableLeftHints = KeyboardSettings.readBoolean(prefs, "disable_left_hints")
+                disableRightHints = KeyboardSettings.readBoolean(prefs, "disable_right_hints")
+                invalidate()
+            }
+            KeyboardSettings.KEYBOARD_THEME_KEY -> {
+                applyKeyboardTheme()
+                invalidate()
+            }
         }
     }
 
@@ -71,11 +78,18 @@ class GlideKeyboardView(context: Context) : View(context) {
         super.onAttachedToWindow()
         prefs.registerOnSharedPreferenceChangeListener(hintToggleListener)
         reloadSettings()
+        applyKeyboardTheme()
     }
 
     override fun onDetachedFromWindow() {
         prefs.unregisterOnSharedPreferenceChangeListener(hintToggleListener)
         super.onDetachedFromWindow()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyKeyboardTheme()
+        invalidate()
     }
 
     fun reloadSettings() {
@@ -450,6 +464,82 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val pCursorText = pt(28f, "#DCE6F2")
     private val pCursorBorder = ps("#263348", 1f)
 
+    private var isLightKeyboard = false
+    private var isOledKeyboard = false
+
+    /** Recolors every custom-drawn part of the keyboard without rebuilding its layout. */
+    private fun applyKeyboardTheme() {
+        val selected = KeyboardSettings.readKeyboardTheme(prefs)
+        val systemIsDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+        isLightKeyboard = when (selected) {
+            KeyboardSettings.KEYBOARD_THEME_LIGHT -> true
+            KeyboardSettings.KEYBOARD_THEME_DARK, KeyboardSettings.KEYBOARD_THEME_OLED -> false
+            else -> !systemIsDark
+        }
+        isOledKeyboard = selected == KeyboardSettings.KEYBOARD_THEME_OLED
+
+        fun recolor(paint: Paint, dark: String, light: String, oled: String = dark) {
+            paint.color = Color.parseColor(when {
+                isOledKeyboard -> oled
+                isLightKeyboard -> light
+                else -> dark
+            })
+        }
+
+        recolor(pBgT, "#0D0D1A", "#F8FAFC", "#000000")
+        recolor(pBgL, "#161628", "#F7FAFC", "#000000")
+        recolor(pBgR, "#13202E", "#FFFFFF", "#000000")
+        recolor(pBgRd, "#0D1118", "#F0F3F7", "#000000")
+        recolor(pDvH, "#1A263A", "#C8D3E0", "#161616")
+        recolor(pDvV, "#1A263A", "#C8D3E0", "#161616")
+        recolor(pGroupDivider, "#26344A", "#C5D0DE", "#202020")
+        recolor(pPrv, "#566380", "#64748B")
+        recolor(pLng, "#4A9EBA", "#0E7490")
+        recolor(pGAc, "#E2E8F0", "#0F172A")
+        recolor(pGIn, "#273450", "#64748B")
+        recolor(pPBg, "#192336", "#E2E8F0", "#050505")
+        recolor(pRpT, "#4ADE80", "#15803D")
+        recolor(pBsT, "#F87171", "#B91C1C")
+        recolor(pBbB, "#0E1924", "#E2E8F0", "#050505")
+        recolor(pBbT, "#7EB0E0", "#245B88")
+        recolor(pHBg, "#1C3555", "#DCEBFA", "#080808")
+        pHBg.alpha = 245
+        recolor(pHBd, "#4070A0", "#7AA4D2")
+        recolor(pHDt, "#4070A0", "#3975B8")
+        recolor(pHLa, "#A8D8FF", "#174A7E")
+        recolor(pHLi, "#6B9FD4", "#426B96")
+        recolor(pRDt, "#5888B8", "#3975B8")
+        pRDt.alpha = if (isLightKeyboard) 75 else 110
+        recolor(pSyB, "#161624", "#F4F6F9", "#000000")
+        recolor(pSBtn, "#292B30", "#E3E8EF", "#050505")
+        recolor(pSBAl, "#3A3B40", "#CBD5E1", "#111111")
+        recolor(pSPressed, "#414650", "#B9CAE0", "#1A1A1A")
+        recolor(pSTx, "#F1F2F5", "#111827")
+        recolor(pSTxS, "#D2D5DC", "#334155")
+        recolor(pSLang, "#D2D5DC", "#334155")
+        recolor(pSPopupBg, "#3A3D44", "#F8FAFC", "#080808")
+        recolor(pSPopupBorder, "#707681", "#94A3B8")
+        recolor(pSPopupSelected, "#596A82", "#BCD0E8")
+        recolor(pSPopupText, "#FFFFFF", "#0F172A")
+        recolor(pSPreviewBg, "#424750", "#FFFFFF", "#080808")
+        recolor(pSPreviewBorder, "#8B94A2", "#94A3B8")
+        recolor(pSPreviewText, "#FFFFFF", "#0F172A")
+        recolor(pActionBg, "#1A202A", "#E3E8EF", "#050505")
+        recolor(pActionBgActive, "#30435B", "#B9D0E8", "#171717")
+        recolor(pActionShiftOnceBg, "#29496B", "#B7D7FA")
+        recolor(pActionShiftCapsBg, "#4B456F", "#D4C7F2")
+        recolor(pActionText, "#DCE6F2", "#1E293B")
+        recolor(pActionSmallText, "#DCE6F2", "#334155")
+        recolor(pActionEnterText, "#F1F5FA", "#111827")
+        recolor(pActionPopupBg, "#3A3D44", "#F8FAFC", "#080808")
+        recolor(pActionPopupBorder, "#8794A6", "#94A3B8")
+        recolor(pActionPopupActive, "#596A82", "#B7CEE8")
+        recolor(pActionPopupText, "#FFFFFF", "#0F172A")
+        recolor(pCursorText, "#DCE6F2", "#1E293B")
+        recolor(pCursorBorder, "#263348", "#C2CFDE")
+    }
+
     override fun onMeasure(w: Int, h: Int) {
         val totalHeight = ((heightDp + bottomMarginDp) * dp).toInt()
         super.onMeasure(w, MeasureSpec.makeMeasureSpec(totalHeight, MeasureSpec.EXACTLY))
@@ -747,7 +837,14 @@ class GlideKeyboardView(context: Context) : View(context) {
             close()
         }
         val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(if (state == ShiftState.CAPS) "#FFFFFF" else "#DCE6F2")
+            color = Color.parseColor(
+                when {
+                    isLightKeyboard && state == ShiftState.CAPS -> "#172033"
+                    isLightKeyboard -> "#1E293B"
+                    state == ShiftState.CAPS -> "#FFFFFF"
+                    else -> "#DCE6F2"
+                }
+            )
             style = if (state == ShiftState.OFF) Paint.Style.STROKE else Paint.Style.FILL
             strokeWidth = 2.2f * dp
             strokeJoin = Paint.Join.ROUND
@@ -756,7 +853,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         canvas.drawPath(path, iconPaint)
         if (state == ShiftState.CAPS) {
             val underline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FFFFFF")
+                color = Color.parseColor(if (isLightKeyboard) "#172033" else "#FFFFFF")
                 strokeWidth = 2.4f * dp
                 strokeCap = Paint.Cap.ROUND
             }
@@ -973,14 +1070,15 @@ class GlideKeyboardView(context: Context) : View(context) {
                 symbol("+", "±", "∓"), symbol("(", "[", "{"), symbol(")", "]", "}")
             ),
             listOf(
-                SymKey("=\\<", weight = 1.42f, action = SymAction.PAGE),
+                SymKey("=\\<", weight = 1.065f, action = SymAction.PAGE),
                 SymKey("*", weight = 0.9f, alternates = listOf("•", "×")),
                 SymKey("\"", weight = 0.9f, alternates = listOf("“", "”", "„", "‟")),
+                SymKey("'", weight = 0.9f, alternates = listOf("‘", "’", "ʼ")),
                 SymKey(":", weight = 0.9f, alternates = listOf("÷", "∶")),
                 SymKey(";", weight = 0.9f, alternates = listOf("…", "⋅")),
                 SymKey("!", weight = 0.9f, alternates = listOf("¡")),
                 SymKey("?", weight = 0.9f, alternates = listOf("¿")),
-                SymKey("⌫", weight = 1.35f, action = SymAction.BACKSPACE)
+                SymKey("⌫", weight = 1.0125f, action = SymAction.BACKSPACE)
             )
         ),
         listOf(
@@ -996,7 +1094,7 @@ class GlideKeyboardView(context: Context) : View(context) {
                 symbol("}", ")", "]"), symbol("\\", "|", "¦")
             ),
             listOf(
-                SymKey("?123", weight = 1.42f, action = SymAction.PAGE),
+                SymKey("?123", weight = 1.065f, action = SymAction.PAGE),
                 SymKey("%", weight = 0.78f, alternates = listOf("‰", "‱")),
                 SymKey("©", weight = 0.78f, alternates = listOf("ⓒ")),
                 SymKey("®", weight = 0.78f, alternates = listOf("ⓡ")),
@@ -1004,15 +1102,13 @@ class GlideKeyboardView(context: Context) : View(context) {
                 SymKey("✓", weight = 0.78f, alternates = listOf("✔", "☑")),
                 SymKey("[", weight = 0.92f, alternates = listOf("(", "{")),
                 SymKey("]", weight = 0.92f, alternates = listOf(")", "}")),
-                symbol("-", "−", "–", "—"),
-                SymKey("'", alternates = listOf("‘", "’", "‚", "‛")),
-                SymKey("⌫", weight = 1.35f, action = SymAction.BACKSPACE)
+                SymKey("⌫", weight = 1.0125f, action = SymAction.BACKSPACE)
             )
         )
     )
 
     private fun bottomSymKeys() = listOf(
-        SymKey("ABC", weight = 1.35f, action = SymAction.ABC),
+        SymKey("ABC", weight = 1.0125f, action = SymAction.ABC),
         if (symPage == 0) {
             SymKey(",", weight = 0.8f, alternates = listOf("،", "‚"))
         } else {
@@ -1027,7 +1123,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         } else {
             SymKey(">", weight = 0.8f, alternates = listOf("≥", "≫"))
         },
-        SymKey("↵", value = "\n", weight = 1.35f, action = SymAction.ENTER)
+        SymKey("↵", value = "\n", weight = 1.0125f, action = SymAction.ENTER)
     )
 
     private fun symRowsForPage() = symPages[symPage.coerceIn(0, symPages.lastIndex)]

@@ -4,6 +4,20 @@ import android.content.SharedPreferences
 
 /** Single source of truth for user-visible settings, defaults and allowed ranges. */
 object KeyboardSettings {
+    const val KEYBOARD_THEME_KEY = "keyboard_theme"
+    const val KEYBOARD_THEME_SYSTEM = "system"
+    const val KEYBOARD_THEME_DARK = "dark"
+    const val KEYBOARD_THEME_LIGHT = "light"
+    const val KEYBOARD_THEME_OLED = "oled"
+
+    fun readKeyboardTheme(preferences: SharedPreferences): String =
+        when (preferences.getString(KEYBOARD_THEME_KEY, KEYBOARD_THEME_SYSTEM)) {
+            KEYBOARD_THEME_DARK -> KEYBOARD_THEME_DARK
+            KEYBOARD_THEME_LIGHT -> KEYBOARD_THEME_LIGHT
+            KEYBOARD_THEME_OLED -> KEYBOARD_THEME_OLED
+            else -> KEYBOARD_THEME_SYSTEM
+        }
+
     data class Definition(
         val key: String,
         val label: String,
@@ -40,9 +54,9 @@ object KeyboardSettings {
         ToggleDefinition("disable_right_hints", "Вимкнути праві підказки",
             "Ховає кругову підказку та індикатор точки дотику; жести праворуч продовжують працювати."),
         ToggleDefinition("micro_vibration", "Мікровібрація клавіш",
-            "Короткий імпульс. Якщо телефон підтримує регулювання сили, імпульс буде слабшим; інакше Android може використати стандартну силу. Реальна інтенсивність залежить від телефона."),
+            "Коротший і слабший імпульс: 12 мс, амплітуда 22/255, якщо пристрій дозволяє регулювати силу. Без такого керування сила може бути стандартною."),
         ToggleDefinition("normal_vibration", "Звичайна вібрація клавіш (мінімальна)",
-            "Короткий імпульс при введенні або видаленні. Якщо силу не можна налаштовувати, інтенсивність визначає прошивка телефону."),
+            "Трохи довший і сильніший імпульс: 16 мс, амплітуда 40/255 за підтримки регулювання. Без нього використовується стандартна сила (18 мс)."),
         ToggleDefinition("delete_space_on_quick_symbol", "Видаляти пробіл перед швидким символом",
             "Якщо перед символом є пробіл, він буде замінений символом."),
         ToggleDefinition("persistent_number_row", "Постійний ряд цифр зверху",
@@ -70,8 +84,17 @@ object KeyboardSettings {
 
     fun readBoolean(preferences: SharedPreferences, key: String): Boolean {
         requireNotNull(togglesByKey[key]) { "Unknown keyboard toggle: $key" }
-        // Unset toggles start unchecked on a fresh install; there is no reset-to-default UI.
-        return preferences.getBoolean(key, false)
+        // These options are enabled by default on a fresh install.
+        val defaultEnabled = key in setOf(
+            "micro_vibration",
+            "delete_space_on_quick_symbol",
+            "persistent_number_row",
+            "space_after_quick_symbol",
+            "auto_capitalization",
+            "key_repeat_enabled",
+            "sticky_repeat_symbol"
+        )
+        return preferences.getBoolean(key, defaultEnabled)
     }
 
     fun resetOne(preferences: SharedPreferences, key: String) {

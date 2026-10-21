@@ -3,19 +3,19 @@ package app.vimex.microglideboard
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Build
-import android.os.Vibrator
-import android.os.VibrationEffect
 import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
+import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ImageView
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
 
     private val settings = KeyboardSettings.definitions
     private val fields = mutableMapOf<String, EditText>()
-    private val toggleFields = mutableMapOf<String, CheckBox>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,16 +36,67 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(20), dp(24), dp(20), dp(28))
         }
 
-        root.addView(TextView(this).apply {
-            text = "MicroGlideBoard"
-            textSize = 24f
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val appIcon = ImageView(this@MainActivity).apply {
+                setImageResource(R.mipmap.ic_launcher)
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also {
+                    it.marginEnd = dp(12)
+                }
+                contentDescription = "MicroGlideBoard"
+            }
+            addView(appIcon)
+            addView(TextView(this@MainActivity).apply {
+                text = "MicroGlideBoard"
+                textSize = 24f
+            })
         })
         root.addView(TextView(this).apply {
-            text = "Експериментальна жестова клавіатура. Числові параметри зберігай кнопкою нижче; перемикачі зберігаються одразу."
+            text = "MicroGlideBoard: Вигадана за одну ніч. Зроблена по приколу. Не вломай пальців."
             textSize = 14f
             setPadding(0, dp(8), 0, dp(16))
         })
 
+        root.addView(TextView(this).apply {
+            text = "Зовнішній вигляд клавіатури"
+            textSize = 18f
+            setPadding(0, dp(8), 0, dp(4))
+        })
+        root.addView(TextView(this).apply {
+            text = "Тема клавіатури незалежна від теми застосунку. «Ультрачорна» використовує чорний фон для OLED-екранів. Зміни застосовуються одразу."
+            textSize = 13f
+            alpha = 0.75f
+            setPadding(0, 0, 0, dp(4))
+        })
+        val keyboardThemeOptions = listOf(
+            KeyboardSettings.KEYBOARD_THEME_SYSTEM to "Як у системі",
+            KeyboardSettings.KEYBOARD_THEME_DARK to "Темна",
+            KeyboardSettings.KEYBOARD_THEME_LIGHT to "Світла",
+            KeyboardSettings.KEYBOARD_THEME_OLED to "Ультрачорна (OLED)"
+        )
+        val keyboardThemeGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+            setPadding(0, 0, 0, dp(12))
+        }
+        val keyboardThemeButtons = keyboardThemeOptions.associate { (value, label) ->
+            value to RadioButton(this).apply {
+                id = View.generateViewId()
+                text = label
+                isChecked = value == KeyboardSettings.readKeyboardTheme(prefs)
+                layoutParams = RadioGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                keyboardThemeGroup.addView(this)
+            }
+        }
+        keyboardThemeGroup.setOnCheckedChangeListener { _, checkedId ->
+            val selected = keyboardThemeButtons.entries.firstOrNull { it.value.id == checkedId }?.key
+                ?: KeyboardSettings.KEYBOARD_THEME_SYSTEM
+            prefs.edit().putString(KeyboardSettings.KEYBOARD_THEME_KEY, selected).apply()
+        }
+        root.addView(keyboardThemeGroup)
 
         settings.forEach { setting ->
             root.addView(TextView(this).apply {
@@ -60,7 +110,7 @@ class MainActivity : ComponentActivity() {
             }
             val edit = EditText(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
                 maxLines = 1
                 setText(KeyboardSettings.read(prefs, setting.key).toString())
                 hint = setting.hint
@@ -83,8 +133,26 @@ class MainActivity : ComponentActivity() {
             })
         }
 
+        // A small text field to test the keyboard directly from the settings screen.
         root.addView(TextView(this).apply {
-            text = "Опції клавіатури та підказок"
+            text = "Тест клавіатури"
+            textSize = 18f
+            setPadding(0, dp(18), 0, dp(4))
+        })
+        root.addView(EditText(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            hint = "Натисни тут і спробуй MicroGlideBoard"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 2
+            maxLines = 4
+            gravity = Gravity.TOP or Gravity.START
+        })
+
+        root.addView(TextView(this).apply {
+            text = "Підказки"
             textSize = 18f
             setPadding(0, dp(18), 0, dp(4))
         })
@@ -99,20 +167,9 @@ class MainActivity : ComponentActivity() {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
                 )
-                toggleFields[setting.key] = this
-                // Save switches immediately. Vibration modes are mutually exclusive.
+                // Save switches immediately; the main Save button is only for numeric settings.
                 setOnCheckedChangeListener { _, checked ->
-                    val otherVibrationKey = when {
-                        setting.key == "micro_vibration" -> "normal_vibration"
-                        setting.key == "normal_vibration" -> "micro_vibration"
-                        else -> null
-                    }
-                    if (checked && otherVibrationKey != null) {
-                        toggleFields[otherVibrationKey]?.isChecked = false
-                        prefs.edit().putBoolean(otherVibrationKey, false).putBoolean(setting.key, true).apply()
-                    } else {
-                        prefs.edit().putBoolean(setting.key, checked).apply()
-                    }
+                    prefs.edit().putBoolean(setting.key, checked).apply()
                 }
             }
             row.addView(checkBox)
@@ -123,34 +180,6 @@ class MainActivity : ComponentActivity() {
                 alpha = 0.7f
             })
         }
-
-        root.addView(Button(this).apply {
-            text = "Перевірити вібрацію (короткий імпульс)"
-            setOnClickListener {
-                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                runCatching {
-                    if (vibrator?.hasVibrator() == true) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            val amplitude = if (vibrator.hasAmplitudeControl()) 40 else VibrationEffect.DEFAULT_AMPLITUDE
-                            vibrator.vibrate(VibrationEffect.createOneShot(18L, amplitude))
-                        } else {
-                            @Suppress("DEPRECATION")
-                            vibrator.vibrate(18L)
-                        }
-                    } else {
-                        // Fallback in case Android does not report a physical vibrator.
-                        root.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    }
-                }.onFailure {
-                    Toast.makeText(this@MainActivity, "Не вдалося запустити вібрацію", Toast.LENGTH_SHORT).show()
-                }
-            }
-        })
-        root.addView(TextView(this).apply {
-            text = "Тест запускає короткий імпульс напряму й не залежить від перемикачів клавіатури. Якщо навіть тест не відчувається, перевірте, чи увімкнені в телефоні системна вібрація та тактильний відгук. Регулювання сили підтримується не всіма пристроями; без нього інтенсивність короткого імпульсу може бути стандартною."
-            textSize = 12f
-            alpha = 0.7f
-        })
 
         root.addView(Button(this).apply {
             text = "Зберегти налаштування"
