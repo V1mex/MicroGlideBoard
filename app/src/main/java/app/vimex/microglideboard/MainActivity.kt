@@ -3,9 +3,13 @@ package app.vimex.microglideboard
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.os.Vibrator
+import android.os.VibrationEffect
 import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -22,6 +26,7 @@ class MainActivity : ComponentActivity() {
 
     private val settings = KeyboardSettings.definitions
     private val fields = mutableMapOf<String, EditText>()
+    private val toggleFields = mutableMapOf<String, CheckBox>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,10 +42,11 @@ class MainActivity : ComponentActivity() {
             textSize = 24f
         })
         root.addView(TextView(this).apply {
-            text = "Експериментальна жестова клавіатура. Числові параметри зберігай кнопкою нижче; перемикачі підказок зберігаються одразу."
+            text = "Експериментальна жестова клавіатура. Числові параметри зберігай кнопкою нижче; перемикачі зберігаються одразу."
             textSize = 14f
             setPadding(0, dp(8), 0, dp(16))
         })
+
 
         settings.forEach { setting ->
             root.addView(TextView(this).apply {
@@ -54,7 +60,7 @@ class MainActivity : ComponentActivity() {
             }
             val edit = EditText(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
                 maxLines = 1
                 setText(KeyboardSettings.read(prefs, setting.key).toString())
                 hint = setting.hint
@@ -78,7 +84,7 @@ class MainActivity : ComponentActivity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "Підказки"
+            text = "Опції клавіатури та підказок"
             textSize = 18f
             setPadding(0, dp(18), 0, dp(4))
         })
@@ -93,9 +99,20 @@ class MainActivity : ComponentActivity() {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
                 )
-                // Save switches immediately; the main Save button is only for numeric settings.
+                toggleFields[setting.key] = this
+                // Save switches immediately. Vibration modes are mutually exclusive.
                 setOnCheckedChangeListener { _, checked ->
-                    prefs.edit().putBoolean(setting.key, checked).apply()
+                    val otherVibrationKey = when {
+                        setting.key == "micro_vibration" -> "normal_vibration"
+                        setting.key == "normal_vibration" -> "micro_vibration"
+                        else -> null
+                    }
+                    if (checked && otherVibrationKey != null) {
+                        toggleFields[otherVibrationKey]?.isChecked = false
+                        prefs.edit().putBoolean(otherVibrationKey, false).putBoolean(setting.key, true).apply()
+                    } else {
+                        prefs.edit().putBoolean(setting.key, checked).apply()
+                    }
                 }
             }
             row.addView(checkBox)
@@ -106,6 +123,34 @@ class MainActivity : ComponentActivity() {
                 alpha = 0.7f
             })
         }
+
+        root.addView(Button(this).apply {
+            text = "Перевірити вібрацію (короткий імпульс)"
+            setOnClickListener {
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                runCatching {
+                    if (vibrator?.hasVibrator() == true) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            val amplitude = if (vibrator.hasAmplitudeControl()) 40 else VibrationEffect.DEFAULT_AMPLITUDE
+                            vibrator.vibrate(VibrationEffect.createOneShot(18L, amplitude))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            vibrator.vibrate(18L)
+                        }
+                    } else {
+                        // Fallback in case Android does not report a physical vibrator.
+                        root.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    }
+                }.onFailure {
+                    Toast.makeText(this@MainActivity, "Не вдалося запустити вібрацію", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+        root.addView(TextView(this).apply {
+            text = "Тест запускає короткий імпульс напряму й не залежить від перемикачів клавіатури. Якщо навіть тест не відчувається, перевірте, чи увімкнені в телефоні системна вібрація та тактильний відгук. Регулювання сили підтримується не всіма пристроями; без нього інтенсивність короткого імпульсу може бути стандартною."
+            textSize = 12f
+            alpha = 0.7f
+        })
 
         root.addView(Button(this).apply {
             text = "Зберегти налаштування"
