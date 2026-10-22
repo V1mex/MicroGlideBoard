@@ -3,9 +3,9 @@
     <string name="app_name">MicroGlideBoard</string>
     <string name="app_icon_description">MicroGlideBoard app icon</string>
     <string name="settings_title">MicroGlideBoard — Settings</string>
-    <string name="settings_intro">Whipped up in a fever dream. Made for sheets and giggles. Don\'t break your fingers.</string>
+    <string name="settings_intro">Finger-dance lab: numeric settings save with the button below; switches save instantly. Dance carefully: the keyboard remembers everything.</string>
     <string name="section_interface_language">Interface language</string>
-    <string name="language_ukrainian">Українська</string>
+    <string name="language_ukrainian">Ukrainian</string>
     <string name="language_english">English</string>
     <string name="section_keyboard_appearance">Keyboard appearance</string>
     <string name="keyboard_theme_description">The keyboard theme is independent of the app theme. OLED Black uses a pure black background for OLED screens. Changes apply immediately.</string>
@@ -23,37 +23,37 @@
     <string name="section_live_options">Switches and behavior</string>
     <string name="section_indicator_hints">Indicator and hints</string>
     <string name="section_vibration">Vibration</string>
+    <string name="section_keyboard_behavior">Layout and typing</string>
     <string name="section_text_entry">Text input</string>
 
     <string name="setting_height">Keyboard height</string>
-    <string name="hint_height">dp · default 330 · no upper limit</string>
+    <string name="hint_height">dp · default 330 · range 240–420</string>
     <string name="setting_left_ratio">Left zone width</string>
     <string name="hint_left_ratio">Fraction of screen width from 0 to 1 · default 0.38</string>
     <string name="setting_bottom_margin">Keyboard distance from the bottom edge</string>
-    <string name="hint_bottom_margin">dp · default 0 · extra space below the keyboard</string>
+    <string name="hint_bottom_margin">dp · default 0 · zero means no extra bottom gap</string>
     <string name="setting_gesture_height">Gesture zone height</string>
-    <string name="hint_gesture_height">Scale > 0 · default 1.0; values > 1 stretch the zone</string>
+    <string name="hint_gesture_height">Scale 0.45–1.0 · default 1.0</string>
     <string name="setting_gesture_offset">Vertical offset of gesture centers</string>
-    <string name="hint_gesture_offset">dp · negative moves up, positive moves down</string>
+    <string name="setting_keyboard_offset">Vertical keyboard offset</string>
+    <string name="hint_gesture_offset">dp · positive moves gesture centers down, negative moves them up; spread contracts near edges</string>
+    <string name="hint_keyboard_offset">dp · positive moves the whole keyboard up; negative moves it down. No fixed user-entered range.</string>
     <string name="setting_gesture_distance">Gesture distance threshold</string>
     <string name="hint_gesture_distance">dp · default 10 · 0 disables the distance threshold</string>
     <string name="setting_gesture_speed">Minimum gesture speed</string>
     <string name="hint_gesture_speed">dp/s · default 55 · 0 disables the speed filter</string>
     <string name="setting_preview_lines">Number of text indicator lines</string>
-    <string name="hint_preview_lines">1 to 50 lines · default 3</string>
+    <string name="hint_preview_lines">From 1 line, no fixed upper limit · default 3</string>
     <string name="setting_hint_right">Right circular hint size</string>
     <string name="hint_hint_right">dp · default 42</string>
     <string name="setting_hint_bubble">Letter-group hint size</string>
     <string name="hint_hint_bubble">Scale · default 1.0</string>
     <string name="setting_hint_pill">Repeat and delete hint size</string>
     <string name="hint_hint_pill">dp · circle radius · default 17</string>
-    <string name="setting_pill_distance">Hint distance from the neutral point</string>
-    <string name="hint_pill_distance">dp · default 46</string>
-
     <string name="toggle_show_text_preview">Show text indicator</string>
     <string name="toggle_hint_show_text_preview">Shows several lines of text around the cursor in the keyboard\'s top bar.</string>
     <string name="toggle_disable_left_hints">Disable all left-side hints</string>
-    <string name="toggle_hint_disable_left_hints">Hides group markers, letter hints, and repeat/delete bubbles. Cursor buttons and gesture-zone boundaries remain visible.</string>
+    <string name="toggle_hint_disable_left_hints">Hides letter hints and repeat/delete bubbles. Horizontal group separators appear only while the left zone is being touched.</string>
     <string name="toggle_disable_right_hints">Disable right-side hints</string>
     <string name="toggle_hint_disable_right_hints">Hides the circular hint and touch-point indicator; right-side gestures continue to work.</string>
     <string name="toggle_micro_vibration">Micro vibration for keys</string>
@@ -82,4 +82,8 @@
     <string name="toast_android_settings_failed">Could not open Android settings</string>
     <string name="toast_all_numeric_reset">Numeric settings reset to defaults</string>
     <string name="toast_numeric_saved">Numeric settings saved</string>
+    <string name="keyboard_lang_uk">UKR</string>
+    <string name="keyboard_lang_en">ENG</string>
+    <string name="keyboard_lang_ru">RUS</string>
+    <string name="keyboard_abc">ABC</string>
 </resources>

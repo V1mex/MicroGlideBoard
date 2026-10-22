@@ -2,7 +2,7 @@ package app.vimex.microglideboard
 
 import android.content.SharedPreferences
 
-/** Settings defaults/ranges and their localized resource IDs. */
+/** Single source of truth for numeric settings, defaults, and persisted switches. */
 object KeyboardSettings {
     const val KEYBOARD_THEME_KEY = "keyboard_theme"
     const val KEYBOARD_THEME_SYSTEM = "system"
@@ -20,51 +20,43 @@ object KeyboardSettings {
 
     data class Definition(
         val key: String,
-        val labelRes: Int,
         val default: Float,
-        val hintRes: Int,
         val min: Float,
         val max: Float
     )
 
-    data class ToggleDefinition(
-        val key: String,
-        val labelRes: Int,
-        val hintRes: Int
-    )
+    data class ToggleDefinition(val key: String)
 
-    // Keep this list in the same logical order used by the settings screen.
     val definitions = listOf(
-        // Size and placement
-        Definition("height_dp", R.string.setting_height, 330f, R.string.hint_height, 1f, Float.MAX_VALUE),
-        Definition("left_ratio", R.string.setting_left_ratio, 0.38f, R.string.hint_left_ratio, 0.001f, 1f),
-        Definition("bottom_margin_dp", R.string.setting_bottom_margin, 0f, R.string.hint_bottom_margin, 0f, 80f),
-        Definition("gesture_height_scale", R.string.setting_gesture_height, 1f, R.string.hint_gesture_height, 0.001f, Float.MAX_VALUE),
-        Definition("gesture_center_offset_dp", R.string.setting_gesture_offset, 0f, R.string.hint_gesture_offset, -100f, 100f),
-        // Gesture recognition
-        Definition("gest_dp", R.string.setting_gesture_distance, 10f, R.string.hint_gesture_distance, 0f, 24f),
-        Definition("gesture_speed", R.string.setting_gesture_speed, 55f, R.string.hint_gesture_speed, 0f, 800f),
-        // Text indicator
-        Definition("preview_lines", R.string.setting_preview_lines, 3f, R.string.hint_preview_lines, 1f, 50f),
-        // Hints
-        Definition("hint_right", R.string.setting_hint_right, 42f, R.string.hint_hint_right, 28f, 48f),
-        Definition("hint_bubble", R.string.setting_hint_bubble, 1f, R.string.hint_hint_bubble, 0.7f, 1.5f),
-        Definition("hint_pill", R.string.setting_hint_pill, 17f, R.string.hint_hint_pill, 12f, 24f),
-        Definition("pill_dist", R.string.setting_pill_distance, 46f, R.string.hint_pill_distance, 12f, 60f)
+        Definition("height_dp", 330f, 240f, 420f),
+        Definition("left_ratio", 0.38f, 0.30f, 0.52f),
+        Definition("gest_dp", 10f, 0f, 24f),
+        Definition("gesture_speed", 55f, 0f, 800f),
+        Definition("preview_lines", 3f, 1f, Float.MAX_VALUE),
+        Definition("hint_right", 42f, 28f, 48f),
+        Definition("hint_bubble", 1f, 0.7f, 1.5f),
+        Definition("hint_pill", 17f, 12f, 24f),
+        Definition("bottom_margin_dp", 0f, 0f, 80f),
+        Definition("gesture_height_scale", 1f, 0.45f, 1f),
+        Definition("gesture_center_offset_dp", 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        // No user-visible min/max for moving the entire keyboard. The view only applies
+        // a platform-safe pixel bound when calculating its measured height.
+        Definition("keyboard_vertical_offset_dp", 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
     )
 
+    // All labels and descriptions are stored in Android string resources.
     val toggleDefinitions = listOf(
-        ToggleDefinition("show_text_preview", R.string.toggle_show_text_preview, R.string.toggle_hint_show_text_preview),
-        ToggleDefinition("disable_left_hints", R.string.toggle_disable_left_hints, R.string.toggle_hint_disable_left_hints),
-        ToggleDefinition("disable_right_hints", R.string.toggle_disable_right_hints, R.string.toggle_hint_disable_right_hints),
-        ToggleDefinition("micro_vibration", R.string.toggle_micro_vibration, R.string.toggle_hint_micro_vibration),
-        ToggleDefinition("normal_vibration", R.string.toggle_normal_vibration, R.string.toggle_hint_normal_vibration),
-        ToggleDefinition("delete_space_on_quick_symbol", R.string.toggle_delete_space_symbol, R.string.toggle_hint_delete_space_symbol),
-        ToggleDefinition("persistent_number_row", R.string.toggle_number_row, R.string.toggle_hint_number_row),
-        ToggleDefinition("space_after_quick_symbol", R.string.toggle_space_after_symbol, R.string.toggle_hint_space_after_symbol),
-        ToggleDefinition("auto_capitalization", R.string.toggle_auto_capitalization, R.string.toggle_hint_auto_capitalization),
-        ToggleDefinition("key_repeat_enabled", R.string.toggle_key_repeat, R.string.toggle_hint_key_repeat),
-        ToggleDefinition("sticky_repeat_symbol", R.string.toggle_repeat_last_symbol, R.string.toggle_hint_repeat_last_symbol)
+        ToggleDefinition("show_text_preview"),
+        ToggleDefinition("disable_left_hints"),
+        ToggleDefinition("disable_right_hints"),
+        ToggleDefinition("micro_vibration"),
+        ToggleDefinition("normal_vibration"),
+        ToggleDefinition("delete_space_on_quick_symbol"),
+        ToggleDefinition("persistent_number_row"),
+        ToggleDefinition("space_after_quick_symbol"),
+        ToggleDefinition("auto_capitalization"),
+        ToggleDefinition("key_repeat_enabled"),
+        ToggleDefinition("sticky_repeat_symbol")
     )
 
     private val byKey = definitions.associateBy(Definition::key)
@@ -75,7 +67,9 @@ object KeyboardSettings {
 
     fun read(preferences: SharedPreferences, key: String): Float {
         val setting = requireNotNull(byKey[key]) { "Unknown keyboard setting: $key" }
-        return preferences.getFloat(key, setting.default).coerceIn(setting.min, setting.max)
+        val value = preferences.getFloat(key, setting.default)
+        if (value.isNaN()) return setting.default
+        return value.coerceIn(setting.min, setting.max)
     }
 
     fun readBoolean(preferences: SharedPreferences, key: String): Boolean {
@@ -90,7 +84,16 @@ object KeyboardSettings {
             "key_repeat_enabled",
             "sticky_repeat_symbol"
         )
-        return preferences.getBoolean(key, defaultEnabled)
+        val raw = preferences.getBoolean(key, defaultEnabled)
+        // Even if an older build saved both switches as true, the UI and haptics
+        // expose one mode only. Micro vibration wins in that legacy conflict.
+        return when (key) {
+            // In a legacy conflict the micro setting wins. The settings UI also fixes the
+            // stored pair when opened and writes both keys atomically when either is enabled.
+            "micro_vibration" -> raw
+            "normal_vibration" -> raw && !preferences.getBoolean("micro_vibration", true)
+            else -> raw
+        }
     }
 
     fun resetOne(preferences: SharedPreferences, key: String) {
