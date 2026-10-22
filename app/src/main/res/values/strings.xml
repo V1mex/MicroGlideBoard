@@ -1,3 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MicroGlideBoard</string>
+    <string name="app_icon_description">MicroGlideBoard app icon</string>
+    <string name="settings_title">MicroGlideBoard — налаштування</string>
+    <string name="settings_intro">Виношена в гарячковому маренні. Зроблена по приколу. Не вломай собі пальців.</string>
+    <string name="section_interface_language">Мова інтерфейсу</string>
+    <string name="language_ukrainian">Державна</string>
+    <string name="language_english">English</string>
+    <string name="section_keyboard_appearance">Зовнішній вигляд клавіатури</string>
+    <string name="keyboard_theme_description">Тема клавіатури не залежить від теми застосунку. «Ультрачорна» використовує чистий чорний фон для OLED-екранів. Зміни застосовуються одразу.</string>
+    <string name="keyboard_theme_system">Як у системі</string>
+    <string name="keyboard_theme_dark">Темна</string>
+    <string name="keyboard_theme_light">Світла</string>
+    <string name="keyboard_theme_oled">Ультрачорна (OLED)</string>
+
+    <string name="section_size_position">Розмір і розташування</string>
+    <string name="section_gesture_behavior">Розпізнавання жестів</string>
+    <string name="section_text_indicator">Індикатор тексту</string>
+    <string name="section_hint_sizes">Розмір і відступи підказок</string>
+    <string name="section_test_keyboard">Тест клавіатури</string>
+    <string name="keyboard_test_hint">Натисни тут і спробуй MicroGlideBoard</string>
+    <string name="section_live_options">Перемикачі та поведінка</string>
+    <string name="section_indicator_hints">Індикатор і підказки</string>
+    <string name="section_vibration">Вібрація</string>
+    <string name="section_text_entry">Введення тексту</string>
+
+    <string name="setting_height">Висота клавіатури</string>
+    <string name="hint_height">dp · типово 330 · без верхньої межі</string>
+    <string name="setting_left_ratio">Ширина лівої зони</string>
+    <string name="hint_left_ratio">Частка ширини екрана від 0 до 1 · типово 0.38</string>
+    <string name="setting_bottom_margin">Відступ клавіатури від нижнього краю</string>
+    <string name="hint_bottom_margin">dp · типово 0 · додатковий відступ унизу екрана</string>
+    <string name="setting_gesture_height">Висота зон жестів</string>
+    <string name="hint_gesture_height">Масштаб > 0 · типово 1.0; значення > 1 розтягують зону</string>
+    <string name="setting_gesture_offset">Вертикальне зміщення центрів жестів</string>
+    <string name="hint_gesture_offset">dp · від’ємне значення — вище, додатне — нижче</string>
+    <string name="setting_gesture_distance">Поріг відстані жесту</string>
+    <string name="hint_gesture_distance">dp · типово 10 · 0 вимикає поріг відстані</string>
+    <string name="setting_gesture_speed">Мінімальна швидкість жесту</string>
+    <string name="hint_gesture_speed">dp/с · типово 55 · 0 вимикає фільтр швидкості</string>
+    <string name="setting_preview_lines">Кількість рядків індикатора тексту</string>
+    <string name="hint_preview_lines">Від 1 до 50 рядків · типово 3</string>
+    <string name="setting_hint_right">Розмір кругової підказки справа</string>
+    <string name="hint_hint_right">dp · типово 42</string>
+    <string name="setting_hint_bubble">Розмір підказок груп букв</string>
+    <string name="hint_hint_bubble">Масштаб · типово 1.0</string>
+    <string name="setting_hint_pill">Розмір підказок повтору та видалення</string>
+    <string name="hint_hint_pill">dp · радіус кружечка · типово 17</string>
+    <string name="setting_pill_distance">Відступ підказок від нейтральної точки</string>
+    <string name="hint_pill_distance">dp · типово 46</string>
+
+    <string name="toggle_show_text_preview">Показувати індикатор тексту</string>
+    <string name="toggle_hint_show_text_preview">Показує кілька рядків контексту навколо курсора у верхній смузі клавіатури.</string>
+    <string name="toggle_disable_left_hints">Вимкнути всі ліві підказки</string>
+    <string name="toggle_hint_disable_left_hints">Ховає маркери груп, підказки букв і кружечки повтору/видалення. Кнопки курсора та межі зон жестів залишаються.</string>
+    <string name="toggle_disable_right_hints">Вимкнути праві підказки</string>
+    <string name="toggle_hint_disable_right_hints">Ховає кругову підказку та індикатор точки дотику; жести праворуч продовжують працювати.</string>
+    <string name="toggle_micro_vibration">Мікровібрація клавіш</string>
+    <string name="toggle_hint_micro_vibration">Короткий і слабкий імпульс: 12 мс, сила 22/255, якщо пристрій підтримує регулювання сили вібрації.</string>
+    <string name="toggle_normal_vibration">Звичайна вібрація клавіш (мінімальна)</string>
+    <string name="toggle_hint_normal_vibration">Трохи довший імпульс: 16 мс, сила 40/255 за підтримки регулювання; інакше використовується стандартна сила.</string>
+    <string name="toggle_delete_space_symbol">Видаляти пробіл перед швидким символом</string>
+    <string name="toggle_hint_delete_space_symbol">Якщо перед швидким символом є пробіл, клавіатура видалить його перед вставленням символу.</string>
+    <string name="toggle_number_row">Постійний ряд цифр зверху</string>
+    <string name="toggle_hint_number_row">Показує цифри над основною клавіатурою. Розкладка цифр на сторінці символів не змінюється.</string>
+    <string name="toggle_space_after_symbol">Додавати пробіл після швидкого символу</string>
+    <string name="toggle_hint_space_after_symbol">Автоматично вставляє пробіл після символу, вибраного на правій панелі.</string>
+    <string name="toggle_auto_capitalization">Автовелика літера на початку речення</string>
+    <string name="toggle_hint_auto_capitalization">Робить першу літеру великою на початку тексту та після крапки, знака оклику або питання.</string>
+    <string name="toggle_key_repeat">Повтор дії при утриманні</string>
+    <string name="toggle_hint_key_repeat">При утриманні Backspace автоматично повторює видалення. Кнопки переміщення курсора повторюють рух незалежно від цього перемикача.</string>
+    <string name="toggle_repeat_last_symbol">Повтор останнього символу при утриманні</string>
+    <string name="toggle_hint_repeat_last_symbol">Утримуй лівий палець у зоні повтору, щоб повторювати останній введений символ.</string>
+
+    <string name="button_reset">Скинути</string>
+    <string name="button_save_numeric">Зберегти числові налаштування</string>
+    <string name="button_android_keyboard_settings">Відкрити налаштування клавіатур Android</string>
+    <string name="button_choose_active_keyboard">Вибрати активну клавіатуру</string>
+    <string name="button_reset_all_numeric">Скинути всі числові значення</string>
+    <string name="toast_setting_reset">Скинуто: %1$s</string>
+    <string name="toast_android_settings_failed">Не вдалося відкрити налаштування Android</string>
+    <string name="toast_all_numeric_reset">Числові параметри скинуто до типових</string>
+    <string name="toast_numeric_saved">Числові параметри збережено</string>
 </resources>

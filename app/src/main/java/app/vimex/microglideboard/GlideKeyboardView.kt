@@ -3,14 +3,9 @@ package app.vimex.microglideboard
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.res.Configuration
 import android.graphics.*
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -21,13 +16,11 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     companion object {
         private const val PREV_DP   = 26f
-        private const val NUMBER_ROW_DP = 52f
         private const val CX_R      = 0.50f
         private const val Y_TOP     = 0.12f; private const val Y_BOT = 0.88f
         private const val SIDE_DP   = 22f
         private const val CENR_DP   = 14f;  private const val HUP_DP = 96f
         private const val BS_HOLD_MS = 500L;  private const val BS_RPT_MS = 80L
-        private const val PILL_OFFSET_DP = 46f
         private const val LK = "\u0001"
         private const val SK = "\u0002"
     }
@@ -35,21 +28,21 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val dp = resources.displayMetrics.density
     private val prefs = context.getSharedPreferences("glide_kb", Context.MODE_PRIVATE)
     private val hintToggleListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        when (key) {
-            "disable_left_hints", "disable_right_hints" -> {
-                disableLeftHints = KeyboardSettings.readBoolean(prefs, "disable_left_hints")
-                disableRightHints = KeyboardSettings.readBoolean(prefs, "disable_right_hints")
-                invalidate()
-            }
-            KeyboardSettings.KEYBOARD_THEME_KEY -> {
-                applyKeyboardTheme()
-                invalidate()
-            }
+        if (key == "disable_left_hints" || key == "disable_right_hints" ||
+            key == "show_text_preview" || key == "preview_lines" ||
+            key == "height_dp" || key == "left_ratio" || key == "gest_dp" ||
+            key == "gesture_speed" || key == "gesture_height_scale" ||
+            key == "gesture_center_offset_dp" || key == "hint_right" ||
+            key == "hint_bubble" || key == "hint_pill" || key == "pill_dist" ||
+            key == "bottom_margin_dp") {
+            reloadSettings()
         }
     }
 
     private var heightDp = KeyboardSettings.defaultFor("height_dp")
     private var leftRatio = KeyboardSettings.defaultFor("left_ratio")
+    private var gestureHeightScale = KeyboardSettings.defaultFor("gesture_height_scale")
+    private var gestureCenterOffsetDp = KeyboardSettings.defaultFor("gesture_center_offset_dp")
     private var gestR = KeyboardSettings.defaultFor("gest_dp") * dp
     // Мінімальна швидкість свайпу в dp/s. 0 вимикає саме швидкісний фільтр;
     // поріг відстані gestR при цьому залишається окремим захистом від випадкових рухів.
@@ -62,15 +55,12 @@ class GlideKeyboardView(context: Context) : View(context) {
     private var hBubble = KeyboardSettings.defaultFor("hint_bubble")
     private var disableLeftHints = false
     private var disableRightHints = false
+    private var showTextPreview = true
+    private var previewLines = 3
     private var pillRadius = KeyboardSettings.defaultFor("hint_pill") * dp
-    private val pillOff = PILL_OFFSET_DP * dp
+    private var pillOff = KeyboardSettings.defaultFor("pill_dist") * dp
     private var bottomMarginDp = KeyboardSettings.defaultFor("bottom_margin_dp")
-    private var leftStillSince = 0L
-    private var lastLeftX = 0f
-    private var lastLeftY = 0f
-    private var leftHintFollowY = false
-    private val prevH: Float
-        get() = (if (KeyboardSettings.readBoolean(prefs, "persistent_number_row")) NUMBER_ROW_DP else PREV_DP) * dp
+    private var prevH = PREV_DP * dp
 
     init { reloadSettings() }
 
@@ -78,7 +68,6 @@ class GlideKeyboardView(context: Context) : View(context) {
         super.onAttachedToWindow()
         prefs.registerOnSharedPreferenceChangeListener(hintToggleListener)
         reloadSettings()
-        applyKeyboardTheme()
     }
 
     override fun onDetachedFromWindow() {
@@ -86,18 +75,15 @@ class GlideKeyboardView(context: Context) : View(context) {
         super.onDetachedFromWindow()
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        applyKeyboardTheme()
-        invalidate()
-    }
-
     fun reloadSettings() {
         val oldHeight = heightDp
+        val oldPreviewHeight = prevH
+        val oldShowTextPreview = showTextPreview
         val oldBottomMargin = bottomMarginDp
-        val oldNumberRow = KeyboardSettings.readBoolean(prefs, "persistent_number_row")
         heightDp = KeyboardSettings.read(prefs, "height_dp")
         leftRatio = KeyboardSettings.read(prefs, "left_ratio")
+        gestureHeightScale = KeyboardSettings.read(prefs, "gesture_height_scale")
+        gestureCenterOffsetDp = KeyboardSettings.read(prefs, "gesture_center_offset_dp")
         gestR = KeyboardSettings.read(prefs, "gest_dp") * dp
         minGestureSpeedDpS = KeyboardSettings.read(prefs, "gesture_speed")
         hR = KeyboardSettings.read(prefs, "hint_right") * dp
@@ -105,12 +91,19 @@ class GlideKeyboardView(context: Context) : View(context) {
         hBubble = KeyboardSettings.read(prefs, "hint_bubble")
         disableLeftHints = KeyboardSettings.readBoolean(prefs, "disable_left_hints")
         disableRightHints = KeyboardSettings.readBoolean(prefs, "disable_right_hints")
+        showTextPreview = KeyboardSettings.readBoolean(prefs, "show_text_preview")
+        previewLines = KeyboardSettings.read(prefs, "preview_lines").toInt().coerceIn(1, 50)
+        prevH = if (showTextPreview) max(PREV_DP * dp, previewLines * 12.5f * dp * 1.18f + 8f * dp) else PREV_DP * dp
         pillRadius = KeyboardSettings.read(prefs, "hint_pill") * dp
+        pillOff = KeyboardSettings.read(prefs, "pill_dist") * dp
         bottomMarginDp = KeyboardSettings.read(prefs, "bottom_margin_dp")
-        // The IME window includes the extra margin, while the keyboard itself
-        // keeps the exact user-selected height. No translated content is clipped.
-        if (oldHeight != heightDp || oldBottomMargin != bottomMarginDp ||
-            oldNumberRow != KeyboardSettings.readBoolean(prefs, "persistent_number_row")) requestLayout()
+        // The indicator and the typing area use identical geometry in both modes.
+        // Since prevH grows with previewLines, onMeasure adds the same extra height
+        // regardless of whether letters or symbols are currently displayed.
+        if (oldHeight != heightDp || oldPreviewHeight != prevH ||
+            oldBottomMargin != bottomMarginDp || oldShowTextPreview != showTextPreview) {
+            requestLayout()
+        }
         invalidate()
     }
 
@@ -118,29 +111,61 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val N: String? = null
     private val langData = mapOf(
         "УКР" to listOf(
-            listOf("о","а","е","и","н","т","р","і"),
-            listOf("с","в","к","л","м","д","п","у"),
-            listOf("й","з","б","г","ж","ч","ю","ь"),
-            listOf("х","ц","ш","щ","ф","я","є","ї"),
-            listOf("ґ", "-", "'", N, N, N, N, N)
+            //        ↑     ↗     →     ↘     ↓     ↙     ←     ↖
+            listOf("о", "а", "е", "и", "н", "т", "р", "с"),  // Neutral
+            listOf("в", "л", "к", "м", "д", "п", "у", "і"),  // G1
+            listOf("ь", "я", "з", "й", "б", "г", "ч", "ж"),  // G2
+            listOf("ю", "х", "ш", "є", "ї", "щ", "ц", "ф"),  // G3
+            listOf("ґ", N, N, N, N, N, N, N)                    // G4
         ),
         "ENG" to listOf(
-            listOf("e","t","a","o","i","n","s","h"),
-            listOf("r","d","l","c","u","m","w","f"),
-            listOf("g","y","p","b","v","k","j","q"),
-            listOf("x","z", "'", N, N, N, N, N)
+            listOf("e", "a", "o", "i", "n", "t", "r", "s"),  // Neutral
+            listOf("w", "l", "c", "m", "d", "p", "u", "h"),  // G1
+            listOf("g", "y", "f", "b", "v", "k", "j", N),    // G2
+            listOf("x", "z", "q", N, N, N, N, N)                 // G3
         ),
         "РУС" to listOf(
-            listOf("о","е","а","и","н","т","с","р"),
-            listOf("в","л","к","м","д","п","у","я"),
-            listOf("з","ь","б","г","й","х","ж","ш"),
-            listOf("ы","э","ю","ч","щ","ц","ф","ё"),
-            listOf("ъ", "-", N, N, N, N, N, N)
+            listOf("о", "а", "е", "и", "н", "т", "р", "с"),  // Neutral
+            listOf("в", "л", "к", "м", "д", "п", "у", "ы"),  // G1
+            listOf("ь", "я", "з", "й", "б", "г", "ч", "ж"),  // G2
+            listOf("ю", "х", "ш", "э", "ё", "щ", "ц", "ф"),  // G3
+            listOf("ъ", N, N, N, N, N, N, N)                     // G4
         )
     )
     private val langOrder = listOf("УКР","ENG","РУС")
     private var langIdx = 0
     private val lang    get() = langOrder[langIdx]
+
+    private val symbolEmoticons = listOf(
+        "(o_O)",
+        "＼(〇_ｏ)／",
+        "(─‿─)",
+        "(￢_￢)",
+        "╮(￣_￣)╭",
+        "(=^･ω･^=)",
+        "( ಡ ﹏ ಡ )",
+        "(〃＾▽＾〃)",
+        "(◕‿◕)",
+        "(ノ°∀°)ノ",
+        "(╯°Д°)╯︵ ┻━┻",
+        "┬─┬ノ( º _ ºノ)",
+        "(╯°□°)╯︵/(\\ .□ . \\)",
+        "┻━┻ ︵ヽ(`Д´)ﾉ︵ ┻━┻",
+        "༼ つ ◕_◕ ༼ つ",
+        "┌( ಠ_ಠ)┘",
+        "(ง ◉ _ ◉)ง",
+        "٩(╬ʘ益ʘ╬)۶",
+        "ヘ(_ _ ヘ)",
+        "(⊙_☉)",
+        "┐(￣∀￣)┌",
+        "( -_•)╦̵̵̿╤─",
+        "＼(≧▽≦)／",
+        "((┌|o^▽^o|┘))",
+        "(｡◕‿◕｡)",
+        "┐(￣ヘ￣)┌"
+    )
+
+    private var currentSymbolEmoticon = symbolEmoticons.random()
     private fun letters()             = langData[lang] ?: emptyList()
     private fun numG()                = letters().size
     private fun letAt(g: Int, d: Int) = letters().getOrNull(g)?.getOrNull(d)
@@ -152,11 +177,15 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     var inputConnection: InputConnection? = null
 
+    /** Called by InputMethodService whenever the editor selection/caret changes. */
+    fun onEditorSelectionChanged() {
+        if (showTextPreview) postInvalidateOnAnimation()
+    }
+
     private var grp = 0; private var lastLtr = ""; private var lastDir = -1
     private var leftId = -1; private var lDown = false
     private var leftCX = 0f
     private var consumed = false; private var inBsZone = false; private var holdBs = false
-    private var inRepeatZone = false; private var holdRepeatSymbol = false
     private var rightId = -1; private var rDown = false
     private var rLX = 0f; private var rLY = 0f; private var rCX = 0f; private var rCY = 0f
     private var symMode = false
@@ -230,14 +259,16 @@ class GlideKeyboardView(context: Context) : View(context) {
             ActionKey("CHAR:!", "!", listOf("¡"))
         ),
         listOf(
-            ActionKey("CHAR::", ":", listOf(";")),
+            ActionKey("CHAR::", ":"),
             ActionKey("CHAR:-", "-", listOf("−", "–", "—")),
-            ActionKey("BACKSPACE", "⌫")
+            ActionKey("CHAR:\"", "\"", listOf("“", "”", "„")),
+            ActionKey("CHAR:'", "'", listOf("‘", "’", "‚"))
         ),
         listOf(
             ActionKey("CHAR:(", "(", listOf("[", "{", "<")),
-            ActionKey("SPACE", "␣"),
-            ActionKey("CHAR:)", ")", listOf("]", "}", ">"))
+            ActionKey("CHAR:)", ")", listOf("]", "}", ">")),
+            ActionKey("CHAR:;", ";"),
+            ActionKey("CHAR:/", "/")
         )
     )
     private var actionId = -1
@@ -275,7 +306,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         }
     }
     private val symBackspaceHoldRun = Runnable {
-        if (KeyboardSettings.readBoolean(prefs, "key_repeat_enabled") && symMode && symDownId != -1 &&
+        if (symMode && symDownId != -1 &&
             symStartBounds?.key?.action == SymAction.BACKSPACE &&
             symCurrentBounds?.key?.action == SymAction.BACKSPACE) {
             symBackspaceRepeating = true
@@ -286,7 +317,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     }
     private val symBackspaceRepeatRun = object : Runnable {
         override fun run() {
-            if (KeyboardSettings.readBoolean(prefs, "key_repeat_enabled") && symMode && symBackspaceRepeating && symDownId != -1 &&
+            if (symMode && symBackspaceRepeating && symDownId != -1 &&
                 symStartBounds?.key?.action == SymAction.BACKSPACE &&
                 symCurrentBounds?.key?.action == SymAction.BACKSPACE) {
                 deleteBackwardOrSelection()
@@ -307,7 +338,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val bsH = Handler(Looper.getMainLooper())
     private val bsRun = object : Runnable {
         override fun run() {
-            if (KeyboardSettings.readBoolean(prefs, "key_repeat_enabled") && holdBs && inBsZone && lDown && leftId != -1 && !symMode) {
+            if (holdBs && inBsZone && lDown && leftId != -1 && !symMode) {
                 deleteBackwardOrSelection()
                 invalidate()
                 bsH.postDelayed(this, BS_RPT_MS)
@@ -317,39 +348,16 @@ class GlideKeyboardView(context: Context) : View(context) {
         }
     }
     private val bsHoldRun = Runnable {
-        if (KeyboardSettings.readBoolean(prefs, "key_repeat_enabled") && lDown && leftId != -1 && consumed && inBsZone && !symMode) {
+        if (lDown && leftId != -1 && consumed && inBsZone && !symMode) {
             holdBs = true
             bsH.post(bsRun)
         }
     }
 
-    private val repeatSymbolRun = object : Runnable {
-        override fun run() {
-            if (KeyboardSettings.readBoolean(prefs, "sticky_repeat_symbol") && holdRepeatSymbol &&
-                inRepeatZone && lDown && leftId != -1 && consumed && !inBsZone && lastLtr.isNotEmpty() && !symMode) {
-                commitInputText(lastLtr)
-                invalidate()
-                bsH.postDelayed(this, BS_RPT_MS)
-            } else {
-                holdRepeatSymbol = false
-            }
-        }
-    }
-    private val repeatSymbolHoldRun = Runnable {
-        if (KeyboardSettings.readBoolean(prefs, "sticky_repeat_symbol") && lDown && leftId != -1 &&
-            consumed && inRepeatZone && !inBsZone && lastLtr.isNotEmpty() && !symMode) {
-            holdRepeatSymbol = true
-            bsH.post(repeatSymbolRun)
-        }
-    }
-
     private fun stopBackspaceRepeat() {
         holdBs = false
-        holdRepeatSymbol = false
         bsH.removeCallbacks(bsRun)
         bsH.removeCallbacks(bsHoldRun)
-        bsH.removeCallbacks(repeatSymbolRun)
-        bsH.removeCallbacks(repeatSymbolHoldRun)
     }
 
     private fun resetGesturePointers() {
@@ -365,8 +373,7 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     private fun dX() = width  * leftRatio
     private fun cX() = dX()   * CX_R
-    private fun contentBottom() = (heightDp * dp).toInt().toFloat()
-    private fun leftSplitY() = prevH + (contentBottom() - prevH) * 0.5f
+    private fun leftSplitY() = prevH + (height - prevH) * 0.5f
     private fun idlePointY() = prevH + (leftSplitY() - prevH) * 0.5f
     private fun isInIdleGestureZone(y: Float): Boolean =
         y >= prevH && y < leftSplitY()
@@ -377,39 +384,30 @@ class GlideKeyboardView(context: Context) : View(context) {
     private fun shownLeftCX() = if (lDown) leftCX else cX()
     private fun gY(g: Int): Float {
         val n = numG()
-        // Keep the visible centers (and their bubbles/pills) inside the keyboard's
-        // inner drawing bounds. Hit-testing via nearestG() still extends the first
-        // and last gesture zones to the outer edges of the left area.
         val zoneTop = prevH
         val zoneBottom = contentBottom()
-        val zoneH = (zoneBottom - zoneTop).coerceAtLeast(1f)
-        // At scale=1, center each gyro halfway between the zone edge and its
-        // neighbor. Add only as much safety inset as the actual hint size needs,
-        // otherwise the first/last gyro look unnaturally far from the edge.
-        val nominalHalfCell = zoneH / n.toFloat() / 2f
-        val visualHalf = maxOf(18f * dp * hBubble, pillRadius + 2f * dp, 10f * dp)
-        val edgeInset = (visualHalf - nominalHalfCell).coerceAtLeast(0f)
-        val availableTop = zoneTop + edgeInset
-        val availableBottom = (zoneBottom - edgeInset).coerceAtLeast(availableTop + 1f)
-        val availableH = (availableBottom - availableTop).coerceAtLeast(1f)
-        val scale = KeyboardSettings.read(prefs, "gesture_height_scale").coerceIn(0.45f, 1f)
-        val offset = KeyboardSettings.read(prefs, "gesture_center_offset_dp") * dp
-        val span = (availableH * scale).coerceIn(1f, availableH)
-        val wantedCenter = zoneTop + zoneH / 2f + offset
-        val top = (wantedCenter - span / 2f).coerceIn(availableTop, availableBottom - span)
-        return top + span * ((g + 0.5f) / n.toFloat())
+        val zoneHeight = (zoneBottom - zoneTop).coerceAtLeast(1f)
+        val baseTop = zoneTop + zoneHeight * Y_TOP
+        val baseBottom = zoneTop + zoneHeight * Y_BOT
+        val baseSpan = (baseBottom - baseTop).coerceAtLeast(1f)
+        // No arbitrary 0.45..1.0 cap: users can shrink or stretch the zone.
+        // The final center is kept inside the keyboard's physical drawing area.
+        val span = baseSpan.toDouble() * gestureHeightScale.toDouble()
+        val center = zoneTop.toDouble() + zoneHeight.toDouble() / 2.0 + gestureCenterOffsetDp.toDouble() * dp.toDouble()
+        val fraction = if (n <= 1) 0.5 else g.toDouble() / (n - 1).toDouble()
+        val y = center - span / 2.0 + span * fraction
+        return y.coerceIn(zoneTop.toDouble(), zoneBottom.toDouble()).toFloat()
     }
     private fun cursorKeyLayout(): List<CursorKeyBounds> {
         val dx = dX()
         val colW = dx / 3f
         val top = leftSplitY()
-        val bottom = contentBottom()
-        val mid = top + (bottom - top) * 0.5f
+        val mid = top + (height - top) * 0.5f
         return listOf(
-            CursorKeyBounds(cursorLeft, 0f, top, colW, bottom),
+            CursorKeyBounds(cursorLeft, 0f, top, colW, contentBottom()),
             CursorKeyBounds(cursorUp, colW, top, colW * 2f, mid),
-            CursorKeyBounds(cursorDown, colW, mid, colW * 2f, bottom),
-            CursorKeyBounds(cursorRight, colW * 2f, top, dx, bottom)
+            CursorKeyBounds(cursorDown, colW, mid, colW * 2f, contentBottom()),
+            CursorKeyBounds(cursorRight, colW * 2f, top, dx, contentBottom())
         )
     }
     private fun cursorKeyAt(x: Float, y: Float): CursorKeyBounds? =
@@ -427,6 +425,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val pDvH = ps("#1A263A",1f); private val pDvV = ps("#1A263A",1f)
     private val pGroupDivider = ps("#26344A", 1f)
     private val pPrv = pt(12.5f,"#566380", Paint.Align.RIGHT)
+    private val pPrvCursor = ps("#566380", 1.5f)
     private val pLng = pt(11f,"#4A9EBA")
     private val pGAc = pt(20f,"#E2E8F0").also { it.typeface = Typeface.DEFAULT_BOLD }
     private val pGIn = pt(17f,"#273450")
@@ -464,85 +463,25 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val pCursorText = pt(28f, "#DCE6F2")
     private val pCursorBorder = ps("#263348", 1f)
 
-    private var isLightKeyboard = false
-    private var isOledKeyboard = false
-
-    /** Recolors every custom-drawn part of the keyboard without rebuilding its layout. */
-    private fun applyKeyboardTheme() {
-        val selected = KeyboardSettings.readKeyboardTheme(prefs)
-        val systemIsDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                Configuration.UI_MODE_NIGHT_YES
-        isLightKeyboard = when (selected) {
-            KeyboardSettings.KEYBOARD_THEME_LIGHT -> true
-            KeyboardSettings.KEYBOARD_THEME_DARK, KeyboardSettings.KEYBOARD_THEME_OLED -> false
-            else -> !systemIsDark
-        }
-        isOledKeyboard = selected == KeyboardSettings.KEYBOARD_THEME_OLED
-
-        fun recolor(paint: Paint, dark: String, light: String, oled: String = dark) {
-            paint.color = Color.parseColor(when {
-                isOledKeyboard -> oled
-                isLightKeyboard -> light
-                else -> dark
-            })
-        }
-
-        recolor(pBgT, "#0D0D1A", "#F8FAFC", "#000000")
-        recolor(pBgL, "#161628", "#F7FAFC", "#000000")
-        recolor(pBgR, "#13202E", "#FFFFFF", "#000000")
-        recolor(pBgRd, "#0D1118", "#F0F3F7", "#000000")
-        recolor(pDvH, "#1A263A", "#C8D3E0", "#161616")
-        recolor(pDvV, "#1A263A", "#C8D3E0", "#161616")
-        recolor(pGroupDivider, "#26344A", "#C5D0DE", "#202020")
-        recolor(pPrv, "#566380", "#64748B")
-        recolor(pLng, "#4A9EBA", "#0E7490")
-        recolor(pGAc, "#E2E8F0", "#0F172A")
-        recolor(pGIn, "#273450", "#64748B")
-        recolor(pPBg, "#192336", "#E2E8F0", "#050505")
-        recolor(pRpT, "#4ADE80", "#15803D")
-        recolor(pBsT, "#F87171", "#B91C1C")
-        recolor(pBbB, "#0E1924", "#E2E8F0", "#050505")
-        recolor(pBbT, "#7EB0E0", "#245B88")
-        recolor(pHBg, "#1C3555", "#DCEBFA", "#080808")
-        pHBg.alpha = 245
-        recolor(pHBd, "#4070A0", "#7AA4D2")
-        recolor(pHDt, "#4070A0", "#3975B8")
-        recolor(pHLa, "#A8D8FF", "#174A7E")
-        recolor(pHLi, "#6B9FD4", "#426B96")
-        recolor(pRDt, "#5888B8", "#3975B8")
-        pRDt.alpha = if (isLightKeyboard) 75 else 110
-        recolor(pSyB, "#161624", "#F4F6F9", "#000000")
-        recolor(pSBtn, "#292B30", "#E3E8EF", "#050505")
-        recolor(pSBAl, "#3A3B40", "#CBD5E1", "#111111")
-        recolor(pSPressed, "#414650", "#B9CAE0", "#1A1A1A")
-        recolor(pSTx, "#F1F2F5", "#111827")
-        recolor(pSTxS, "#D2D5DC", "#334155")
-        recolor(pSLang, "#D2D5DC", "#334155")
-        recolor(pSPopupBg, "#3A3D44", "#F8FAFC", "#080808")
-        recolor(pSPopupBorder, "#707681", "#94A3B8")
-        recolor(pSPopupSelected, "#596A82", "#BCD0E8")
-        recolor(pSPopupText, "#FFFFFF", "#0F172A")
-        recolor(pSPreviewBg, "#424750", "#FFFFFF", "#080808")
-        recolor(pSPreviewBorder, "#8B94A2", "#94A3B8")
-        recolor(pSPreviewText, "#FFFFFF", "#0F172A")
-        recolor(pActionBg, "#1A202A", "#E3E8EF", "#050505")
-        recolor(pActionBgActive, "#30435B", "#B9D0E8", "#171717")
-        recolor(pActionShiftOnceBg, "#29496B", "#B7D7FA")
-        recolor(pActionShiftCapsBg, "#4B456F", "#D4C7F2")
-        recolor(pActionText, "#DCE6F2", "#1E293B")
-        recolor(pActionSmallText, "#DCE6F2", "#334155")
-        recolor(pActionEnterText, "#F1F5FA", "#111827")
-        recolor(pActionPopupBg, "#3A3D44", "#F8FAFC", "#080808")
-        recolor(pActionPopupBorder, "#8794A6", "#94A3B8")
-        recolor(pActionPopupActive, "#596A82", "#B7CEE8")
-        recolor(pActionPopupText, "#FFFFFF", "#0F172A")
-        recolor(pCursorText, "#DCE6F2", "#1E293B")
-        recolor(pCursorBorder, "#263348", "#C2CFDE")
-    }
+    // Actual drawing/content bottom excludes the reserved blank bottom margin.
+    // Both keyboard modes share the same indicator height and typing-area height.
+    private fun contentBottom(): Float = height.toFloat() - bottomMarginDp * dp
 
     override fun onMeasure(w: Int, h: Int) {
-        val totalHeight = ((heightDp + bottomMarginDp) * dp).toInt()
-        super.onMeasure(w, MeasureSpec.makeMeasureSpec(totalHeight, MeasureSpec.EXACTLY))
+        // Use the requested height without an arbitrary dp ceiling. The upper bound below
+        // is Android's technical MeasureSpec size limit, not a user-facing setting limit.
+        val maxMeasureSize = (1 shl 30) - 1
+        // Indicator growth is added in both modes. This keeps the symbol-key area equal
+        // in width and height to the normal typing area; bottomMarginDp remains empty
+        // space below the keyboard content in both modes.
+        val extraPreviewPx = if (showTextPreview) {
+            (prevH - PREV_DP * dp).coerceAtLeast(0f)
+        } else {
+            0f
+        }
+        val requestedPx = (heightDp + bottomMarginDp).toDouble() * dp.toDouble() + extraPreviewPx.toDouble()
+        val heightPx = requestedPx.coerceIn(1.0, maxMeasureSize.toDouble()).toInt()
+        super.onMeasure(w, MeasureSpec.makeMeasureSpec(heightPx, MeasureSpec.EXACTLY))
     }
 
     // ── Draw ─────────────────────────────────────────────────────────────────
@@ -567,39 +506,104 @@ class GlideKeyboardView(context: Context) : View(context) {
         canvas.drawRect(0f,prevH,dx,H,pBgL)
         canvas.drawRect(dx,prevH,W,H, if (lDown) pBgR else pBgRd)
         canvas.drawLine(0f,prevH,W,prevH,pDvH); canvas.drawLine(dx,prevH,dx,H,pDvV)
-        val t = try { inputConnection?.getTextBeforeCursor(40,0)?.toString() ?: "" } catch (e: Exception) { "" }
-        val showNumberRow = KeyboardSettings.readBoolean(prefs, "persistent_number_row")
-        if (!showNumberRow) {
-            if (t.isNotEmpty()) canvas.drawText(t, W-8f*dp, prevH/2f+pPrv.textSize/3f, pPrv)
-            canvas.drawText(lang, 20f*dp, prevH/2f+pLng.textSize/3f, pLng)
-        } else {
-            // Language/text stay in the top strip. Center digits mathematically
-            // inside the remaining area, using font metrics rather than a fixed baseline.
-            val topStripBottom = 15f * dp
-            canvas.drawText(lang, 20f*dp, 12f*dp, pLng)
-            if (t.isNotEmpty()) canvas.drawText(t, W-7f*dp, 12f*dp, pPrv)
-            val digitPaint = Paint(pLng).apply {
-                textSize = 19f * dp
-                textAlign = Paint.Align.CENTER
-                typeface = Typeface.DEFAULT_BOLD
-            }
-            val digitW = W / 10f
-            val digitAreaCenterY = (topStripBottom + prevH) / 2f
-            val digitBaseline = digitAreaCenterY - (digitPaint.ascent() + digitPaint.descent()) / 2f
-            for (i in 1 until 10) {
-                val x = digitW * i
-                canvas.drawLine(x, topStripBottom, x, prevH - 3f * dp, pGroupDivider)
-            }
-            "1234567890".forEachIndexed { i, digit ->
-                canvas.drawText(digit.toString(), digitW * (i + 0.5f), digitBaseline, digitPaint)
-            }
-        }
+        if (showTextPreview) drawTextPreview(canvas, W)
+        canvas.drawText(lang, 20f*dp, prevH/2f+pLng.textSize/3f, pLng)
         canvas.save(); canvas.clipRect(0f,prevH,dx,H); drawLeft(canvas,dx); canvas.restore()
         if (lDown && rDown) {
             canvas.save(); canvas.clipRect(dx,prevH,W,H); drawRight(canvas,dx,W); canvas.restore()
         } else if (!lDown) {
             canvas.save(); canvas.clipRect(dx,prevH,W,H); drawActionBar(canvas); canvas.restore()
         }
+    }
+
+    private fun drawTextPreview(canvas: Canvas, widthPx: Float, areaHeight: Float = prevH) {
+        val before = try { inputConnection?.getTextBeforeCursor(180, 0)?.toString() ?: "" } catch (_: Exception) { "" }
+        val after = try { inputConnection?.getTextAfterCursor(180, 0)?.toString() ?: "" } catch (_: Exception) { "" }
+        val full = before + after
+        val allLines = full.split('\n')
+        val cursorLine = before.count { it == '\n' }.coerceIn(0, allLines.lastIndex)
+        val cursorColumn = before.substringAfterLast('\n').length
+
+        val lineHeight = pPrv.textSize * 1.15f
+        // In symbol mode the overall keyboard height is fixed, so the preview area
+        // is capped to leave usable room for all five key rows. Show as many of the
+        // requested context rows as can fit in that area.
+        val rowsThatFit = ((areaHeight - 8f * dp) / lineHeight).toInt().coerceAtLeast(1)
+        // Keep the configured number of rows when the area permits it. Missing
+        // context rows are rendered blank instead of shrinking the indicator.
+        val rowsToShow = min(previewLines.coerceIn(1, 50), rowsThatFit)
+        val preceding = (rowsToShow - 1) / 2
+        // If there are enough real lines, shift the window at document boundaries
+        // so it remains full (e.g. last line => show two previous lines + current).
+        // If the whole document is shorter than the selected count, blank rows fill the gap.
+        val startLine = if (allLines.size >= rowsToShow) {
+            (cursorLine - preceding).coerceIn(0, allLines.size - rowsToShow)
+        } else {
+            cursorLine - preceding
+        }
+        val totalHeight = rowsToShow * lineHeight
+        val metrics = pPrv.fontMetrics
+        val firstBaseline = (areaHeight - totalHeight) / 2f - metrics.ascent
+        canvas.save()
+        canvas.clipRect(48f * dp, 0f, widthPx - 5f * dp, areaHeight)
+        val availableWidth = (widthPx - 58f * dp).coerceAtLeast(1f)
+        val anchorX = widthPx - 8f * dp
+
+        repeat(rowsToShow) { index ->
+            val lineIndex = startLine + index
+            if (lineIndex in allLines.indices) {
+                val line = allLines[lineIndex]
+                val baseline = firstBaseline + index * lineHeight
+                if (lineIndex == cursorLine) {
+                    // Draw the text on both sides of the caret separately. Using a font glyph
+                    // such as '▏' inserts its own side-bearing, which looks like a fake space.
+                    val safeColumn = cursorColumn.coerceIn(0, line.length)
+                    val leftRaw = line.substring(0, safeColumn)
+                    val rightRaw = line.substring(safeColumn)
+                    val (left, right) = fitPreviewLineAroundCursor(leftRaw, rightRaw, availableWidth)
+                    val rightWidth = pPrv.measureText(right)
+                    val caretX = anchorX - rightWidth
+                    canvas.drawText(right, anchorX, baseline, pPrv)
+                    canvas.drawText(left, caretX, baseline, pPrv)
+                    pPrvCursor.color = pPrv.color
+                    canvas.drawLine(caretX, baseline + metrics.ascent, caretX,
+                        baseline + metrics.descent, pPrvCursor)
+                } else {
+                    val visible = android.text.TextUtils.ellipsize(
+                        line, android.text.TextPaint(pPrv), availableWidth,
+                        android.text.TextUtils.TruncateAt.START
+                    ).toString()
+                    canvas.drawText(visible, anchorX, baseline, pPrv)
+                }
+            }
+        }
+        canvas.restore()
+    }
+
+    /** Returns left/right display fragments with truncation ellipses, but no caret glyph. */
+    private fun fitPreviewLineAroundCursor(
+        leftText: String,
+        rightText: String,
+        maxWidth: Float
+    ): Pair<String, String> {
+        var left = leftText
+        var right = rightText
+        var clippedLeft = false
+        var clippedRight = false
+        fun visibleLeft() = (if (clippedLeft) "…" else "") + left
+        fun visibleRight() = right + (if (clippedRight) "…" else "")
+        fun currentWidth() = pPrv.measureText(visibleLeft()) + pPrv.measureText(visibleRight())
+
+        while (currentWidth() > maxWidth && (left.isNotEmpty() || right.isNotEmpty())) {
+            if (left.length >= right.length && left.isNotEmpty()) {
+                left = left.drop(1)
+                clippedLeft = true
+            } else if (right.isNotEmpty()) {
+                right = right.dropLast(1)
+                clippedRight = true
+            }
+        }
+        return visibleLeft() to visibleRight()
     }
 
     private fun drawLeft(canvas: Canvas, dx: Float) {
@@ -611,34 +615,24 @@ class GlideKeyboardView(context: Context) : View(context) {
             }
             return
         }
-        // Zone boundaries are part of the gesture layout, not optional hints.
-        // Keep them visible even when the user hides all left-side labels/bubbles.
+        if (disableLeftHints) return
+        // Full-width separators between neighboring letter groups.
         for (g in 0 until numG() - 1) {
             val dividerY = (gY(g) + gY(g + 1)) * 0.5f
             canvas.drawLine(0f, dividerY, dx, dividerY, pGroupDivider)
         }
-        if (disableLeftHints) return
         (0 until numG()).forEach { g ->
             val gy = gY(g); val act = g == grp
             canvas.drawText(if (g==0) "◎" else "$g", cx, gy+(if (act) pGAc else pGIn).textSize/3f, if (act) pGAc else pGIn)
-            if (act) {
-                // Action pills stay horizontally anchored to the calibrated left
-                // center and disappear as soon as delete/repeat is activated.
-                // After the left center has been recalibrated, their Y position
-                // follows that finger while still keeping both pills on-screen.
-                if (!consumed) {
-                    val hintY = if (leftHintFollowY) {
-                        lastLeftY.coerceIn(prevH + pillRadius, contentBottom() - pillRadius)
-                    } else gy
-                    val hintCX = cx
-                    val pillR = pillRadius
-                    val pillOffset = pillOff + pillR + 5f * dp
-                    val leftX = (hintCX - pillOffset).coerceIn(pillR + 4f * dp, (dx - pillR - 4f * dp).coerceAtLeast(pillR + 4f * dp))
-                    val rightX = (hintCX + pillOffset).coerceIn(pillR + 4f * dp, (dx - pillR - 4f * dp).coerceAtLeast(pillR + 4f * dp))
-                    pill(canvas, rightX, hintY, lastLtr.uppercase().let { if (it.isEmpty()) "·" else "↺$it" }, pPBg, pRpT)
-                    pill(canvas, leftX, hintY, "⌫", pPBg, pBsT)
-                }
-            } else { bubble(canvas, dx, gy, g) }
+            if (act && !consumed) {
+                // Відсуваємо підказки від точки контакту й збільшуємо їх.
+                val pillR = pillRadius
+                val pillOffset = pillOff + pillR + 5f * dp
+                val leftX = (cx - pillOffset).coerceAtLeast(pillR + 4f * dp)
+                val rightX = (cx + pillOffset).coerceAtMost(dx - pillR - 4f * dp)
+                pill(canvas, rightX, gy, lastLtr.uppercase().let { if (it.isEmpty()) "·" else "↺$it" }, pPBg, pRpT)
+                pill(canvas, leftX, gy, "⌫", pPBg, pBsT)
+            } else if (!act) { bubble(canvas, dx, gy, g) }
         }
     }
 
@@ -666,7 +660,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         val scale = hBubble
         val bcx = zoneW*0.83f; val fs = 10f*dp*scale
         val cw = 12f*dp*scale; val rh = 11f*dp*scale; val pad = 3f*dp*scale
-        val rows = 3
+        val rows = 2
         val cols = ceil(ls.size / rows.toFloat()).toInt().coerceAtLeast(1)
         val tw = cols*cw+pad; val th = rows*rh+pad
         val r = RectF(bcx-tw/2f, cy-th/2f, bcx+tw/2f, cy+th/2f)
@@ -697,7 +691,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         val minY = prevH + edgeGap
         val maxY = (contentBottom() - edgeGap).coerceAtLeast(minY)
         // A little extra clearance makes the sideways move happen earlier.
-        val safeDistance = hR + touchRadius + 27f * dp
+        val safeDistance = hR + touchRadius + 14f * dp
 
         var hx = rCX.coerceIn(minX, maxX)
         var hy = (rCY - hUp).coerceIn(minY, maxY)
@@ -730,8 +724,13 @@ class GlideKeyboardView(context: Context) : View(context) {
             val actualHorizontalDistance = abs(hx - rCX)
             val neededVertical = sqrt(
                 (safeDistance * safeDistance - actualHorizontalDistance * actualHorizontalDistance).coerceAtLeast(0f)
-            ).toFloat()
+            )
             hy = (rCY - neededVertical).coerceIn(minY, sideY)
+        }
+        // If there is neither usable space above nor on the left, use the top-right corner.
+        if (rCY - hUp < minY && rCX - safeDistance < minX) {
+            hx = maxX
+            hy = minY
         }
 
         canvas.drawCircle(hx,hy,hR,pHBg); canvas.drawCircle(hx,hy,hR,pHBd); canvas.drawCircle(hx,hy,3f*dp,pHDt)
@@ -749,7 +748,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     private fun actionLayout(): List<ActionKeyBounds> {
         val dx = dX()
         val zoneW = (width - dx).coerceAtLeast(1f)
-        val availableH = (contentBottom() - prevH).coerceAtLeast(1f)
+        val availableH = (height - prevH).coerceAtLeast(1f)
         // Верхні два ряди з утилітами нижчі; дві пунктуаційні смуги внизу більші.
         val utilityRowH = availableH * 0.18f
         val symbolRowH = (availableH - utilityRowH * 2f) / actionSymbolRows.size.coerceAtLeast(1)
@@ -764,11 +763,10 @@ class GlideKeyboardView(context: Context) : View(context) {
         }
         actionSymbolRows.forEachIndexed { rowIndex, row ->
             val yTop = prevH + utilityRowH * 2f + rowIndex * symbolRowH
-            var x = dx
+            val keyW = zoneW / row.size
             row.forEachIndexed { index, key ->
-                val keyW = if (rowIndex == 2) zoneW * (if (key.id == "SPACE") 0.5f else 0.25f) else zoneW / row.size
-                result += ActionKeyBounds(key, rowIndex + 2, index, x, yTop, x + keyW, yTop + symbolRowH)
-                x += keyW
+                val left = dx + index * keyW
+                result += ActionKeyBounds(key, rowIndex + 2, index, left, yTop, left + keyW, yTop + symbolRowH)
             }
         }
         return result
@@ -788,21 +786,19 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     private fun drawActionBar(canvas: Canvas) {
         val layout = actionLayout()
-        val autoCapitalizationReady = KeyboardSettings.readBoolean(prefs, "auto_capitalization") && shouldAutoCapitalize()
-        val displayedShiftState = if (shiftState == ShiftState.OFF && autoCapitalizationReady) ShiftState.ONCE else shiftState
         layout.forEach { bounds ->
             val isActive = actionId != -1 && actionCurrent?.key?.id == bounds.key.id && actionCurrent?.row == bounds.row
             val isShift = bounds.key.id == "SHIFT"
             val shiftBg = when {
                 isActive -> pActionBgActive
-                isShift && displayedShiftState == ShiftState.ONCE -> pActionShiftOnceBg
-                isShift && displayedShiftState == ShiftState.CAPS -> pActionShiftCapsBg
+                isShift && shiftState == ShiftState.ONCE -> pActionShiftOnceBg
+                isShift && shiftState == ShiftState.CAPS -> pActionShiftCapsBg
                 else -> pActionBg
             }
             val rect = RectF(bounds.left + 2f * dp, bounds.top + 2f * dp, bounds.right - 2f * dp, bounds.bottom - 2f * dp)
             canvas.drawRoundRect(rect, 5f * dp, 5f * dp, if (isShift) shiftBg else if (isActive) pActionBgActive else pActionBg)
             if (isShift) {
-                drawShiftIcon(canvas, bounds, displayedShiftState)
+                drawShiftIcon(canvas, bounds, shiftState)
             } else if (bounds.key.id == "ENTER") {
                 // Enter/paragraph icon is intentionally larger than the other utility icons.
                 canvas.drawText("↵", bounds.centerX, bounds.centerY + pActionEnterText.textSize * 0.34f, pActionEnterText)
@@ -837,14 +833,7 @@ class GlideKeyboardView(context: Context) : View(context) {
             close()
         }
         val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(
-                when {
-                    isLightKeyboard && state == ShiftState.CAPS -> "#172033"
-                    isLightKeyboard -> "#1E293B"
-                    state == ShiftState.CAPS -> "#FFFFFF"
-                    else -> "#DCE6F2"
-                }
-            )
+            color = Color.parseColor(if (state == ShiftState.CAPS) "#FFFFFF" else "#DCE6F2")
             style = if (state == ShiftState.OFF) Paint.Style.STROKE else Paint.Style.FILL
             strokeWidth = 2.2f * dp
             strokeJoin = Paint.Join.ROUND
@@ -853,7 +842,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         canvas.drawPath(path, iconPaint)
         if (state == ShiftState.CAPS) {
             val underline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor(if (isLightKeyboard) "#172033" else "#FFFFFF")
+                color = Color.parseColor("#FFFFFF")
                 strokeWidth = 2.4f * dp
                 strokeCap = Paint.Cap.ROUND
             }
@@ -938,7 +927,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         actionHandler.removeCallbacks(actionLongPressRun)
         if (actionPopupShown) {
             actionPopupIndexAtX(x)?.let { actionSelectedAlt = it }
-            actionStart?.key?.alternates?.getOrNull(actionSelectedAlt)?.let { commitInputText(it) }
+            actionStart?.key?.alternates?.getOrNull(actionSelectedAlt)?.let { inputConnection?.commitText(it, 1) }
         } else {
             val releasedOnKey = actionKeyAt(x, y)
             if (releasedOnKey != null) {
@@ -967,7 +956,9 @@ class GlideKeyboardView(context: Context) : View(context) {
                 lastLtr = ""
             }
             "SYM" -> {
+                currentSymbolEmoticon = symbolEmoticons.random()
                 symMode = true
+                requestLayout()
                 symPage = 0
                 clearSymTracking()
                 resetGesturePointers()
@@ -982,51 +973,26 @@ class GlideKeyboardView(context: Context) : View(context) {
                 lastShiftTap = now
             }
             "REPEAT" -> repeatLastWord()
-            "ENTER" -> commitInputText("\n")
-            "BACKSPACE" -> deleteBackwardOrSelection()
-            "SPACE" -> commitInputText(" ")
+            "ENTER" -> inputConnection?.commitText("\n", 1)
             "SETTINGS" -> {
                 runCatching {
                     context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
             }
-            else -> if (key.id.startsWith("CHAR:")) commitQuickSymbol(key.label)
+            else -> if (key.id.startsWith("CHAR:")) inputConnection?.commitText(key.label, 1)
         }
         invalidate()
-    }
-
-
-    private fun commitQuickSymbol(symbol: String) {
-        val ic = inputConnection ?: return
-        if (KeyboardSettings.readBoolean(prefs, "delete_space_on_quick_symbol")) {
-            val before = try { ic.getTextBeforeCursor(1, 0)?.toString() } catch (_: Exception) { null }
-            if (before == " ") deleteSurroundingWithHaptic(ic, 1, 0)
-        }
-        val output = if (symbol.length == 1 && symbol[0].isLetter() &&
-            KeyboardSettings.readBoolean(prefs, "auto_capitalization") && shouldAutoCapitalize()) symbol.uppercase() else symbol
-        commitTextWithHaptic(ic, output, 1)
-        if (KeyboardSettings.readBoolean(prefs, "space_after_quick_symbol")) commitTextWithHaptic(ic, " ", 1)
-    }
-
-    private fun shouldAutoCapitalize(): Boolean {
-        val before = try { inputConnection?.getTextBeforeCursor(3, 0)?.toString().orEmpty() } catch (_: Exception) { "" }
-        if (before.isEmpty()) return true
-        val trimmed = before.trimEnd()
-        return trimmed.isEmpty() || trimmed.last() in ".!?\n"
     }
 
     private fun repeatLastWord() {
         val before = try { inputConnection?.getTextBeforeCursor(200, 0)?.toString() } catch (_: Exception) { null } ?: return
         if (before.isEmpty()) return
-        // Only append a trailing space when the cursor was already immediately
-        // after whitespace. Otherwise separate the repeated word on its left,
-        // but do not manufacture a space after the inserted word.
-        val cursorWasAfterWhitespace = before.lastOrNull()?.isWhitespace() == true
-        val base = before.trimEnd()
+        val hasTrailingSpace = before.endsWith(" ")
+        val base = before.trimEnd(' ')
         val wordStart = base.indexOfLast { it.isWhitespace() } + 1
         val word = base.substring(wordStart)
         if (word.isEmpty()) return
-        commitInputText(if (cursorWasAfterWhitespace) "$word " else " $word")
+        inputConnection?.commitText(if (hasTrailingSpace) "$word " else " $word", 1)
     }
 
     // ── Symbol keyboard ───────────────────────────────────────────────────────
@@ -1067,18 +1033,18 @@ class GlideKeyboardView(context: Context) : View(context) {
             listOf(
                 symbol("@", "©", "®"), symbol("#", "№"), symbol("₽", "\$", "€", "£", "¥", "¢"),
                 symbol("_", "—", "–"), symbol("&", "§"), symbol("-", "−", "–", "—"),
-                symbol("+", "±", "∓"), symbol("(", "[", "{"), symbol(")", "]", "}")
+                symbol("+", "±", "∓"), symbol("(", "[", "{"), symbol(")", "]", "}"), symbol("/", "\\", "|")
             ),
             listOf(
-                SymKey("=\\<", weight = 1.065f, action = SymAction.PAGE),
+                SymKey("=\\<", weight = 1.42f, action = SymAction.PAGE),
                 SymKey("*", weight = 0.9f, alternates = listOf("•", "×")),
                 SymKey("\"", weight = 0.9f, alternates = listOf("“", "”", "„", "‟")),
-                SymKey("'", weight = 0.9f, alternates = listOf("‘", "’", "ʼ")),
+                SymKey("'", weight = 0.9f, alternates = listOf("‘", "’", "‚", "‛")),
                 SymKey(":", weight = 0.9f, alternates = listOf("÷", "∶")),
                 SymKey(";", weight = 0.9f, alternates = listOf("…", "⋅")),
                 SymKey("!", weight = 0.9f, alternates = listOf("¡")),
                 SymKey("?", weight = 0.9f, alternates = listOf("¿")),
-                SymKey("⌫", weight = 1.0125f, action = SymAction.BACKSPACE)
+                SymKey("⌫", weight = 1.35f, action = SymAction.BACKSPACE)
             )
         ),
         listOf(
@@ -1094,7 +1060,7 @@ class GlideKeyboardView(context: Context) : View(context) {
                 symbol("}", ")", "]"), symbol("\\", "|", "¦")
             ),
             listOf(
-                SymKey("?123", weight = 1.065f, action = SymAction.PAGE),
+                SymKey("?123", weight = 1.42f, action = SymAction.PAGE),
                 SymKey("%", weight = 0.78f, alternates = listOf("‰", "‱")),
                 SymKey("©", weight = 0.78f, alternates = listOf("ⓒ")),
                 SymKey("®", weight = 0.78f, alternates = listOf("ⓡ")),
@@ -1102,20 +1068,20 @@ class GlideKeyboardView(context: Context) : View(context) {
                 SymKey("✓", weight = 0.78f, alternates = listOf("✔", "☑")),
                 SymKey("[", weight = 0.92f, alternates = listOf("(", "{")),
                 SymKey("]", weight = 0.92f, alternates = listOf(")", "}")),
-                SymKey("⌫", weight = 1.0125f, action = SymAction.BACKSPACE)
+                SymKey("⌫", weight = 1.35f, action = SymAction.BACKSPACE)
             )
         )
     )
 
     private fun bottomSymKeys() = listOf(
-        SymKey("ABC", weight = 1.0125f, action = SymAction.ABC),
+        SymKey("ABC", weight = 1.35f, action = SymAction.ABC),
         if (symPage == 0) {
             SymKey(",", weight = 0.8f, alternates = listOf("،", "‚"))
         } else {
             SymKey("<", weight = 0.8f, alternates = listOf("≤", "≪"))
         },
         SymKey(
-            when (lang) { "УКР" -> "Українська"; "ENG" -> "English"; else -> "Русский" },
+            currentSymbolEmoticon,
             value = " ", weight = 4f, action = SymAction.SPACE
         ),
         if (symPage == 0) {
@@ -1123,19 +1089,29 @@ class GlideKeyboardView(context: Context) : View(context) {
         } else {
             SymKey(">", weight = 0.8f, alternates = listOf("≥", "≫"))
         },
-        SymKey("↵", value = "\n", weight = 1.0125f, action = SymAction.ENTER)
+        SymKey("↵", value = "\n", weight = 1.35f, action = SymAction.ENTER)
     )
 
     private fun symRowsForPage() = symPages[symPage.coerceIn(0, symPages.lastIndex)]
 
+    private fun symbolPreviewHeight(): Float {
+        // The indicator occupies exactly the same height as in letter mode. Do not
+        // cap it based on the keyboard body height: prevH already determines the
+        // matching total height shared by both modes.
+        return prevH
+    }
+
     private fun symLayout(): List<SymKeyBounds> {
         val w = width.toFloat(); val h = contentBottom()
         if (w <= 0f || h <= 0f) return emptyList()
-        val top = 5f * dp
+        // Match the normal keyboard's geometry: same indicator height above the
+        // symbol keys, same remaining typing area height, same bottom margin.
+        val previewAreaH = symbolPreviewHeight()
+        val top = previewAreaH + 5f * dp
         val bottom = 5f * dp
         val rowGap = 3f * dp
-        val rowH = (h - top - bottom - rowGap * 3f) / 4f
         val rows = symRowsForPage() + listOf(bottomSymKeys())
+        val rowH = (h - top - bottom - rowGap * (rows.size - 1)).coerceAtLeast(1f) / rows.size.coerceAtLeast(1)
         val result = ArrayList<SymKeyBounds>()
         rows.forEachIndexed { rowIndex, row ->
             val totalWeight = row.sumOf { it.weight.toDouble() }.toFloat()
@@ -1189,7 +1165,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         val top = if (bounds.top >= popupH + 9f * dp) {
             bounds.top - popupH - 5f * dp
         } else {
-            (bounds.bottom + 5f * dp).coerceAtMost((contentBottom() - popupH - 3f * dp).coerceAtLeast(3f * dp))
+            (bounds.bottom + 5f * dp).coerceAtMost((height - popupH - 3f * dp).coerceAtLeast(3f * dp))
         }
         return RectF(left, top, left + totalW, top + popupH)
     }
@@ -1207,7 +1183,15 @@ class GlideKeyboardView(context: Context) : View(context) {
     }
 
     private fun drawSym(canvas: Canvas) {
-        canvas.drawRect(0f, 0f, width.toFloat(), contentBottom(), pSyB)
+        val w = width.toFloat()
+        val h = contentBottom()
+        canvas.drawRect(0f, 0f, w, h, pSyB)
+        val previewAreaH = symbolPreviewHeight()
+        // Keep the indicator field identical in size and appearance in both modes,
+        // even when its text is disabled (the field then stays blank).
+        canvas.drawRect(0f, 0f, w, previewAreaH, pBgT)
+        if (showTextPreview) drawTextPreview(canvas, w, previewAreaH)
+        canvas.drawLine(0f, previewAreaH, w, previewAreaH, pDvH)
         symLayout().forEach { b ->
             val isCurrent = symDownId != -1 &&
                     symCurrentBounds?.rowIndex == b.rowIndex && symCurrentBounds?.keyIndex == b.keyIndex
@@ -1280,7 +1264,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         val previewH = 49f * dp
         val centerX = symTouchX.coerceIn(previewW / 2f + 2f * dp, width - previewW / 2f - 2f * dp)
         val minTop = 2f * dp
-        val maxTop = (contentBottom() - previewH - 2f * dp).coerceAtLeast(minTop)
+        val maxTop = (height - previewH - 2f * dp).coerceAtLeast(minTop)
         var top = if (symLongPressed) {
             // Keep the selected-character preview out of the popup strip so the
             // alternatives stay visible as a guide above the finger.
@@ -1404,7 +1388,7 @@ class GlideKeyboardView(context: Context) : View(context) {
                         symPopupIndexAtFingerX(x)?.let { symSelectedAltIndex = it }
                         val startKey = symStartBounds?.key
                         val alt = startKey?.alternates?.getOrNull(symSelectedAltIndex)
-                        if (alt != null) commitInputText(alt)
+                        if (alt != null) inputConnection?.commitText(alt, 1)
                         else hit?.let { performSymKey(it.key) }
                     } else {
                         // Keep quick taps reliable even when the release lands in
@@ -1432,19 +1416,22 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     private fun performSymKey(key: SymKey) {
         when (key.action) {
-            SymAction.INPUT -> commitInputText(key.value)
+            SymAction.INPUT -> inputConnection?.commitText(key.value, 1)
             SymAction.BACKSPACE -> deleteBackwardOrSelection()
             SymAction.ABC -> {
                 clearSymTracking()
                 symMode = false
+                requestLayout()
                 resetGesturePointers()
             }
             SymAction.PAGE -> {
+                // Keep the same emoticon while switching symbol pages. It is chosen
+                // once when entering symbol mode from the letter keyboard.
                 symPage = (symPage + 1) % symPages.size
                 clearSymTracking()
             }
-            SymAction.SPACE -> commitInputText(" ")
-            SymAction.ENTER -> commitInputText("\n")
+            SymAction.SPACE -> inputConnection?.commitText(" ", 1)
+            SymAction.ENTER -> inputConnection?.commitText("\n", 1)
         }
         invalidate()
     }
@@ -1455,6 +1442,9 @@ class GlideKeyboardView(context: Context) : View(context) {
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
         } catch (_: Exception) { }
+        // Repeat-run moves the caret every ~80 ms. Redraw after every step instead of
+        // waiting until the finger is released, so the preview follows the caret live.
+        onEditorSelectionChanged()
     }
 
     private fun beginCursorTouch(id: Int, x: Float, y: Float) {
@@ -1505,11 +1495,14 @@ class GlideKeyboardView(context: Context) : View(context) {
 
     // ── Touch ────────────────────────────────────────────────────────────────
 
+    private fun insertSpaceUnlessTextIsImmediatelyAfterCursor() {
+        val next = try { inputConnection?.getTextAfterCursor(1, 0)?.firstOrNull() } catch (_: Exception) { null }
+        // A newline/whitespace after the cursor is not text blocking a space.
+        if (next != null && !next.isWhitespace()) return
+        inputConnection?.commitText(" ", 1)
+    }
+
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN || ev.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
-            val idx = ev.actionIndex
-            if (ev.getY(idx) >= contentBottom()) return true
-        }
         if (symMode) { handleSym(ev); return true }
         val dx = dX()
         when (ev.actionMasked) {
@@ -1521,14 +1514,8 @@ class GlideKeyboardView(context: Context) : View(context) {
                     clearActionTracking()
                 }
                 when {
-                    y < prevH && KeyboardSettings.readBoolean(prefs, "persistent_number_row") -> {
-                        val digit = "1234567890"[(x / (width / 10f)).toInt().coerceIn(0, 9)]
-                        commitInputText(digit.toString())
-                    }
                     x < dx && leftId == -1 && cursorId == -1 && isInIdleGestureZone(y) -> {
                         leftId = id; lDown = true
-                        leftStillSince = ev.eventTime; lastLeftX = x; lastLeftY = y
-                        leftHintFollowY = false
                         // Keep dynamic zero calibration at pickup and group transitions only.
                         leftCX = clampLeftCX(x)
                         consumed = false; inBsZone = false; stopBackspaceRepeat()
@@ -1560,16 +1547,11 @@ class GlideKeyboardView(context: Context) : View(context) {
                 val x = ev.getX(idx); val y = ev.getY(idx)
                 when (id) {
                     leftId -> {
-                        leftId = -1; lDown = false; consumed = false; inBsZone = false; inRepeatZone = false
-                        leftHintFollowY = false
+                        leftId = -1; lDown = false; consumed = false; inBsZone = false
                         stopBackspaceRepeat(); invalidate()
                     }
                     rightId -> {
-                        val ic = inputConnection
-                        val textAfterCursor = try { ic?.getTextAfterCursor(1, 0)?.toString().orEmpty() } catch (_: Exception) { "" }
-                        // A tap without a selected direction is an explicit space.
-                        // After typing a letter, do not insert a space before existing text.
-                        if (lastDir == -1 || textAfterCursor.isEmpty()) commitInputText(" ")
+                        insertSpaceUnlessTextIsImmediatelyAfterCursor()
                         rightId = -1; rDown = false; lastDir = -1
                         velocitySamples.clear()
                         rLastEventTime = 0L; rTD = 0f; candidateDir = -1
@@ -1581,8 +1563,7 @@ class GlideKeyboardView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 leftId = -1; lDown = false; rightId = -1; rDown = false
-                consumed = false; inBsZone = false; inRepeatZone = false; lastDir = -1
-                leftHintFollowY = false
+                consumed = false; inBsZone = false; lastDir = -1
                 velocitySamples.clear(); rLastEventTime = 0L; rTD = 0f; candidateDir = -1
                 stopBackspaceRepeat(); clearActionTracking(); clearCursorTracking(); invalidate()
             }
@@ -1594,24 +1575,12 @@ class GlideKeyboardView(context: Context) : View(context) {
         if (leftId == -1) return
         val idx = ev.findPointerIndex(leftId); if (idx == -1) return
         val x = ev.getX(idx); val y = ev.getY(idx)
-        val now = ev.eventTime
-        if (leftStillSince == 0L) { leftStillSince = now; lastLeftX = x; lastLeftY = y }
-        val tinyMove = hypot((x - lastLeftX).toDouble(), (y - lastLeftY).toDouble()).toFloat() < 2.5f * dp
-        if (!tinyMove) { leftStillSince = now; lastLeftX = x; lastLeftY = y }
-        else if (now - leftStillSince >= 450L && !inBsZone && !holdBs && !consumed) {
-            // Re-center after a stable pause/tiny drift, but never while the left
-            // finger is actively deleting or repeating a character.
-            leftCX = clampLeftCX(x)
-            lastLeftX = x; lastLeftY = y; leftStillSince = now
-            leftHintFollowY = true
-        }
         val ng = nearestG(y)
-        if (ng != grp && !consumed) {
+        if (ng != grp) {
             grp = ng
-            leftHintFollowY = false
             // Dynamic zero calibration happens at the group transition only.
             leftCX = clampLeftCX(x)
-            consumed=false; inBsZone=false; inRepeatZone=false
+            consumed=false; inBsZone=false
             stopBackspaceRepeat()
             lastDir = -1
             if (rightId != -1) {
@@ -1629,21 +1598,13 @@ class GlideKeyboardView(context: Context) : View(context) {
             inBsZone = false
             stopBackspaceRepeat()
         }
-        if (inRepeatZone && ddx <= sideR) {
-            inRepeatZone = false
-            holdRepeatSymbol = false
-            bsH.removeCallbacks(repeatSymbolRun)
-            bsH.removeCallbacks(repeatSymbolHoldRun)
-        }
 
         if (consumed) {
-            if (abs(ddx) < cenR) {
-                consumed=false; inBsZone=false; inRepeatZone=false
-                stopBackspaceRepeat()
+            val ddy = y - gY(grp)
+            if (sqrt(ddx*ddx+ddy*ddy) < cenR) {
+                consumed=false; inBsZone=false
+                stopBackspaceRepeat(); invalidate()
             }
-            // Repaint while the pointer moves so the active delete/repeat hint
-            // follows it even when the gesture is outside the visual row center.
-            invalidate()
             return
         }
 
@@ -1655,70 +1616,8 @@ class GlideKeyboardView(context: Context) : View(context) {
                 invalidate()
             }
             ddx > sideR -> {
-                if (lastLtr.isNotEmpty()) commitInputText(lastLtr)
-                consumed=true
-                inRepeatZone = true
-                if (KeyboardSettings.readBoolean(prefs, "sticky_repeat_symbol") && lastLtr.isNotEmpty()) {
-                    bsH.postDelayed(repeatSymbolHoldRun, BS_HOLD_MS)
-                }
-                invalidate()
-            }
-        }
-    }
-
-    private fun commitInputText(text: CharSequence, newCursorPosition: Int = 1) {
-        val ic = inputConnection ?: return
-        commitTextWithHaptic(ic, text, newCursorPosition)
-    }
-
-    private fun commitTextWithHaptic(ic: InputConnection, text: CharSequence, newCursorPosition: Int = 1) {
-        if (text.isNotEmpty()) microVibrate()
-        ic.commitText(text, newCursorPosition)
-    }
-
-    private fun deleteSurroundingWithHaptic(ic: InputConnection, beforeLength: Int, afterLength: Int) {
-        microVibrate()
-        ic.deleteSurroundingText(beforeLength, afterLength)
-    }
-
-    private fun microVibrate() {
-        val microEnabled = KeyboardSettings.readBoolean(prefs, "micro_vibration")
-        val normalEnabled = KeyboardSettings.readBoolean(prefs, "normal_vibration")
-        if (!microEnabled && !normalEnabled) return
-
-        try {
-            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            if (vibrator?.hasVibrator() == true) {
-                val amplitudeControl = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && vibrator.hasAmplitudeControl()
-                when {
-                    microEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
-                        // Amplitude is reduced when supported. Without amplitude control,
-                        // use a very short default-amplitude pulse rather than doing nothing.
-                        val amplitude = if (amplitudeControl) 22 else VibrationEffect.DEFAULT_AMPLITUDE
-                        vibrator.vibrate(VibrationEffect.createOneShot(12L, amplitude))
-                    }
-                    normalEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
-                        // Keep this pulse short; actual strength is device/firmware dependent
-                        // if amplitude control is unavailable.
-                        val amplitude = if (amplitudeControl) 40 else VibrationEffect.DEFAULT_AMPLITUDE
-                        vibrator.vibrate(VibrationEffect.createOneShot(if (amplitudeControl) 16L else 18L, amplitude))
-                    }
-                    microEnabled -> {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(12L)
-                    }
-                    normalEnabled -> {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(18L)
-                    }
-                }
-            } else if (microEnabled || normalEnabled) {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (_: Exception) {
-            // Haptics must never prevent text input from working.
-            if (microEnabled || normalEnabled) {
-                runCatching { performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+                if (lastLtr.isNotEmpty()) inputConnection?.commitText(lastLtr,1)
+                consumed=true; invalidate()
             }
         }
     }
@@ -1726,18 +1625,12 @@ class GlideKeyboardView(context: Context) : View(context) {
     private fun deleteBackwardOrSelection() {
         val ic = inputConnection ?: return
         val selected = try { ic.getSelectedText(0)?.toString() } catch (_: Exception) { null }
-        if (!selected.isNullOrEmpty()) {
-            microVibrate()
-            ic.commitText("", 1)
-        } else {
-            val before = try { ic.getTextBeforeCursor(1, 0)?.toString().orEmpty() } catch (_: Exception) { "" }
-            if (before.isNotEmpty()) deleteSurroundingWithHaptic(ic, 1, 0)
-        }
+        if (!selected.isNullOrEmpty()) ic.commitText("", 1)
+        else ic.deleteSurroundingText(1, 0)
     }
 
     private fun applyShift(letter: String): String {
-        val autoCap = KeyboardSettings.readBoolean(prefs, "auto_capitalization") && shouldAutoCapitalize()
-        val output = if (shiftState != ShiftState.OFF || autoCap) letter.uppercase() else letter
+        val output = if (shiftState != ShiftState.OFF) letter.uppercase() else letter
         if (shiftState == ShiftState.ONCE) shiftState = ShiftState.OFF
         return output
     }
@@ -1835,14 +1728,9 @@ class GlideKeyboardView(context: Context) : View(context) {
         val selectedDirection = candidateDir
         val letter = letAt(grp, selectedDirection)
         if (letter != null) {
-            val wasOneShotShift = shiftState == ShiftState.ONCE
-            val autoCapApplied = shiftState != ShiftState.CAPS &&
-                    KeyboardSettings.readBoolean(prefs, "auto_capitalization") && shouldAutoCapitalize()
             val committed = applyShift(letter)
-            commitInputText(committed)
-            // A capital produced only by one-shot Shift or sentence auto-cap is
-            // repeated as its lowercase source. Caps Lock keeps uppercase repeats.
-            lastLtr = if (wasOneShotShift || autoCapApplied) letter.lowercase() else committed
+            inputConnection?.commitText(committed, 1)
+            lastLtr = committed
             lastDir = selectedDirection
         }
         // Drop pre-commit motion history so a quick turn (e.g. left then up)

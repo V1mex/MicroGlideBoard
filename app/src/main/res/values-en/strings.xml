@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MicroGlideBoard</string>
+    <string name="app_icon_description">MicroGlideBoard app icon</string>
+    <string name="settings_title">MicroGlideBoard — Settings</string>
+    <string name="settings_intro">Whipped up in a fever dream. Made for sheets and giggles. Don\'t break your fingers.</string>
+    <string name="section_interface_language">Interface language</string>
+    <string name="language_ukrainian">Українська</string>
+    <string name="language_english">English</string>
+    <string name="section_keyboard_appearance">Keyboard appearance</string>
+    <string name="keyboard_theme_description">The keyboard theme is independent of the app theme. OLED Black uses a pure black background for OLED screens. Changes apply immediately.</string>
+    <string name="keyboard_theme_system">Follow system</string>
+    <string name="keyboard_theme_dark">Dark</string>
+    <string name="keyboard_theme_light">Light</string>
+    <string name="keyboard_theme_oled">OLED black</string>
+
+    <string name="section_size_position">Size and placement</string>
+    <string name="section_gesture_behavior">Gesture recognition</string>
+    <string name="section_text_indicator">Text indicator</string>
+    <string name="section_hint_sizes">Hint size and spacing</string>
+    <string name="section_test_keyboard">Keyboard test</string>
+    <string name="keyboard_test_hint">Tap here and try MicroGlideBoard</string>
+    <string name="section_live_options">Switches and behavior</string>
+    <string name="section_indicator_hints">Indicator and hints</string>
+    <string name="section_vibration">Vibration</string>
+    <string name="section_text_entry">Text input</string>
+
+    <string name="setting_height">Keyboard height</string>
+    <string name="hint_height">dp · default 330 · no upper limit</string>
+    <string name="setting_left_ratio">Left zone width</string>
+    <string name="hint_left_ratio">Fraction of screen width from 0 to 1 · default 0.38</string>
+    <string name="setting_bottom_margin">Keyboard distance from the bottom edge</string>
+    <string name="hint_bottom_margin">dp · default 0 · extra space below the keyboard</string>
+    <string name="setting_gesture_height">Gesture zone height</string>
+    <string name="hint_gesture_height">Scale > 0 · default 1.0; values > 1 stretch the zone</string>
+    <string name="setting_gesture_offset">Vertical offset of gesture centers</string>
+    <string name="hint_gesture_offset">dp · negative moves up, positive moves down</string>
+    <string name="setting_gesture_distance">Gesture distance threshold</string>
+    <string name="hint_gesture_distance">dp · default 10 · 0 disables the distance threshold</string>
+    <string name="setting_gesture_speed">Minimum gesture speed</string>
+    <string name="hint_gesture_speed">dp/s · default 55 · 0 disables the speed filter</string>
+    <string name="setting_preview_lines">Number of text indicator lines</string>
+    <string name="hint_preview_lines">1 to 50 lines · default 3</string>
+    <string name="setting_hint_right">Right circular hint size</string>
+    <string name="hint_hint_right">dp · default 42</string>
+    <string name="setting_hint_bubble">Letter-group hint size</string>
+    <string name="hint_hint_bubble">Scale · default 1.0</string>
+    <string name="setting_hint_pill">Repeat and delete hint size</string>
+    <string name="hint_hint_pill">dp · circle radius · default 17</string>
+    <string name="setting_pill_distance">Hint distance from the neutral point</string>
+    <string name="hint_pill_distance">dp · default 46</string>
+
+    <string name="toggle_show_text_preview">Show text indicator</string>
+    <string name="toggle_hint_show_text_preview">Shows several lines of text around the cursor in the keyboard\'s top bar.</string>
+    <string name="toggle_disable_left_hints">Disable all left-side hints</string>
+    <string name="toggle_hint_disable_left_hints">Hides group markers, letter hints, and repeat/delete bubbles. Cursor buttons and gesture-zone boundaries remain visible.</string>
+    <string name="toggle_disable_right_hints">Disable right-side hints</string>
+    <string name="toggle_hint_disable_right_hints">Hides the circular hint and touch-point indicator; right-side gestures continue to work.</string>
+    <string name="toggle_micro_vibration">Micro vibration for keys</string>
+    <string name="toggle_hint_micro_vibration">Short, gentle pulse: 12 ms at strength 22/255, if the device supports vibration strength control.</string>
+    <string name="toggle_normal_vibration">Regular key vibration (minimum)</string>
+    <string name="toggle_hint_normal_vibration">A slightly longer pulse: 16 ms at strength 40/255 when supported; otherwise the system default strength is used.</string>
+    <string name="toggle_delete_space_symbol">Delete space before a quick symbol</string>
+    <string name="toggle_hint_delete_space_symbol">If a space precedes a quick symbol, the keyboard deletes it before inserting the symbol.</string>
+    <string name="toggle_number_row">Persistent number row at the top</string>
+    <string name="toggle_hint_number_row">Shows numbers above the main keyboard. The number layout on the symbols page is unchanged.</string>
+    <string name="toggle_space_after_symbol">Add a space after a quick symbol</string>
+    <string name="toggle_hint_space_after_symbol">Automatically inserts a space after a symbol selected on the right panel.</string>
+    <string name="toggle_auto_capitalization">Auto-capitalize at the start of a sentence</string>
+    <string name="toggle_hint_auto_capitalization">Capitalizes the first letter at the start of text and after a period, exclamation mark, or question mark.</string>
+    <string name="toggle_key_repeat">Repeat action while holding</string>
+    <string name="toggle_hint_key_repeat">Holding Backspace repeats deletion automatically. Cursor movement buttons repeat independently of this switch.</string>
+    <string name="toggle_repeat_last_symbol">Repeat the last symbol while holding</string>
+    <string name="toggle_hint_repeat_last_symbol">Hold your left finger in the repeat zone to repeat the last entered symbol.</string>
+
+    <string name="button_reset">Reset</string>
+    <string name="button_save_numeric">Save numeric settings</string>
+    <string name="button_android_keyboard_settings">Open Android keyboard settings</string>
+    <string name="button_choose_active_keyboard">Choose active keyboard</string>
+    <string name="button_reset_all_numeric">Reset all numeric values</string>
+    <string name="toast_setting_reset">Reset: %1$s</string>
+    <string name="toast_android_settings_failed">Could not open Android settings</string>
+    <string name="toast_all_numeric_reset">Numeric settings reset to defaults</string>
+    <string name="toast_numeric_saved">Numeric settings saved</string>
+</resources>

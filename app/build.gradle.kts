@@ -13,17 +13,18 @@ android {
         applicationId = "app.vimex.microglideboard"
         minSdk = 24
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("debug")
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                //packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**") //causes crashes on A16 for some reason?
             }
         }
     }

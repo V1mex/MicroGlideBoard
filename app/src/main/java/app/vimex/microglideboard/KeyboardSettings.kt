@@ -2,7 +2,7 @@ package app.vimex.microglideboard
 
 import android.content.SharedPreferences
 
-/** Single source of truth for user-visible settings, defaults and allowed ranges. */
+/** Settings defaults/ranges and their localized resource IDs. */
 object KeyboardSettings {
     const val KEYBOARD_THEME_KEY = "keyboard_theme"
     const val KEYBOARD_THEME_SYSTEM = "system"
@@ -20,55 +20,51 @@ object KeyboardSettings {
 
     data class Definition(
         val key: String,
-        val label: String,
+        val labelRes: Int,
         val default: Float,
-        val hint: String,
+        val hintRes: Int,
         val min: Float,
         val max: Float
     )
 
     data class ToggleDefinition(
         val key: String,
-        val label: String,
-        val hint: String
+        val labelRes: Int,
+        val hintRes: Int
     )
 
+    // Keep this list in the same logical order used by the settings screen.
     val definitions = listOf(
-        Definition("height_dp", "Висота клавіатури", 330f, "dp · типово 330", 240f, 420f),
-        Definition("left_ratio", "Ширина лівої зони", 0.38f, "0.30–0.52 · типово 0.38", 0.30f, 0.52f),
-        Definition("gest_dp", "Поріг відстані свайпу", 10f, "dp · типово 10 · 0 = без порога відстані", 0f, 24f),
-        Definition("gesture_speed", "Мінімальна швидкість свайпу", 55f, "dp/с · типово 55 · 0 = вимкнути фільтр швидкості", 0f, 800f),
-        Definition("hint_right", "Розмір кругової підказки справа", 42f, "dp · типово 42", 28f, 48f),
-        Definition("hint_bubble", "Розмір підказок груп букв", 1f, "масштаб · типово 1.0", 0.7f, 1.5f),
-        Definition("hint_pill", "Розмір підказок повтору/видалення", 17f, "dp · радіус кружечка · типово 17", 12f, 24f),
-        Definition("bottom_margin_dp", "Відступ клавіатури від нижнього краю", 0f, "dp · типово 0", 0f, 80f),
-        Definition("gesture_height_scale", "Висота зон жестів", 1f, "масштаб висоти центрів · 0.45–1.0 · типово 1.0", 0.45f, 1f),
-        Definition("gesture_center_offset_dp", "Вертикальне зміщення центру жестів", 0f, "dp · мінус = вгору, плюс = вниз", -100f, 100f)
+        // Size and placement
+        Definition("height_dp", R.string.setting_height, 330f, R.string.hint_height, 1f, Float.MAX_VALUE),
+        Definition("left_ratio", R.string.setting_left_ratio, 0.38f, R.string.hint_left_ratio, 0.001f, 1f),
+        Definition("bottom_margin_dp", R.string.setting_bottom_margin, 0f, R.string.hint_bottom_margin, 0f, 80f),
+        Definition("gesture_height_scale", R.string.setting_gesture_height, 1f, R.string.hint_gesture_height, 0.001f, Float.MAX_VALUE),
+        Definition("gesture_center_offset_dp", R.string.setting_gesture_offset, 0f, R.string.hint_gesture_offset, -100f, 100f),
+        // Gesture recognition
+        Definition("gest_dp", R.string.setting_gesture_distance, 10f, R.string.hint_gesture_distance, 0f, 24f),
+        Definition("gesture_speed", R.string.setting_gesture_speed, 55f, R.string.hint_gesture_speed, 0f, 800f),
+        // Text indicator
+        Definition("preview_lines", R.string.setting_preview_lines, 3f, R.string.hint_preview_lines, 1f, 50f),
+        // Hints
+        Definition("hint_right", R.string.setting_hint_right, 42f, R.string.hint_hint_right, 28f, 48f),
+        Definition("hint_bubble", R.string.setting_hint_bubble, 1f, R.string.hint_hint_bubble, 0.7f, 1.5f),
+        Definition("hint_pill", R.string.setting_hint_pill, 17f, R.string.hint_hint_pill, 12f, 24f),
+        Definition("pill_dist", R.string.setting_pill_distance, 46f, R.string.hint_pill_distance, 12f, 60f)
     )
 
-    // Independent live switches: persisted as soon as the user changes a checkbox.
-    // They are intentionally not part of the numeric defaults/reset mechanism.
     val toggleDefinitions = listOf(
-        ToggleDefinition("disable_left_hints", "Вимкнути всі ліві підказки",
-            "Ховає цифри груп, підказки букв і кружечки повтору/видалення. Горизонтальні межі динамічних зон жестів та кнопки курсора залишаються."),
-        ToggleDefinition("disable_right_hints", "Вимкнути праві підказки",
-            "Ховає кругову підказку та індикатор точки дотику; жести праворуч продовжують працювати."),
-        ToggleDefinition("micro_vibration", "Мікровібрація клавіш",
-            "Коротший і слабший імпульс: 12 мс, амплітуда 22/255, якщо пристрій дозволяє регулювати силу. Без такого керування сила може бути стандартною."),
-        ToggleDefinition("normal_vibration", "Звичайна вібрація клавіш (мінімальна)",
-            "Трохи довший і сильніший імпульс: 16 мс, амплітуда 40/255 за підтримки регулювання. Без нього використовується стандартна сила (18 мс)."),
-        ToggleDefinition("delete_space_on_quick_symbol", "Видаляти пробіл перед швидким символом",
-            "Якщо перед символом є пробіл, він буде замінений символом."),
-        ToggleDefinition("persistent_number_row", "Постійний ряд цифр зверху",
-            "Показує цифри над основною клавіатурою; цифри на сторінці символів не змінюються."),
-        ToggleDefinition("space_after_quick_symbol", "Ставити пробіл після швидкого символу",
-            "Автоматично додає пробіл після символу з правої панелі."),
-        ToggleDefinition("auto_capitalization", "Автовелика літера на початку речення",
-            "Першу літеру після початку тексту або . ! ? робить великою."),
-        ToggleDefinition("key_repeat_enabled", "Повторне видалення при утриманні",
-            "Після затримки утримання Backspace автоматично повторює видалення. Кнопки переміщення курсора повторюють рух завжди й від цієї опції не залежать."),
-        ToggleDefinition("sticky_repeat_symbol", "Залипання повтору останнього символу",
-            "Утримуйте лівий палець у зоні повтору, щоб повторювати останній введений символ; логіка як у видалення.")
+        ToggleDefinition("show_text_preview", R.string.toggle_show_text_preview, R.string.toggle_hint_show_text_preview),
+        ToggleDefinition("disable_left_hints", R.string.toggle_disable_left_hints, R.string.toggle_hint_disable_left_hints),
+        ToggleDefinition("disable_right_hints", R.string.toggle_disable_right_hints, R.string.toggle_hint_disable_right_hints),
+        ToggleDefinition("micro_vibration", R.string.toggle_micro_vibration, R.string.toggle_hint_micro_vibration),
+        ToggleDefinition("normal_vibration", R.string.toggle_normal_vibration, R.string.toggle_hint_normal_vibration),
+        ToggleDefinition("delete_space_on_quick_symbol", R.string.toggle_delete_space_symbol, R.string.toggle_hint_delete_space_symbol),
+        ToggleDefinition("persistent_number_row", R.string.toggle_number_row, R.string.toggle_hint_number_row),
+        ToggleDefinition("space_after_quick_symbol", R.string.toggle_space_after_symbol, R.string.toggle_hint_space_after_symbol),
+        ToggleDefinition("auto_capitalization", R.string.toggle_auto_capitalization, R.string.toggle_hint_auto_capitalization),
+        ToggleDefinition("key_repeat_enabled", R.string.toggle_key_repeat, R.string.toggle_hint_key_repeat),
+        ToggleDefinition("sticky_repeat_symbol", R.string.toggle_repeat_last_symbol, R.string.toggle_hint_repeat_last_symbol)
     )
 
     private val byKey = definitions.associateBy(Definition::key)
@@ -84,8 +80,8 @@ object KeyboardSettings {
 
     fun readBoolean(preferences: SharedPreferences, key: String): Boolean {
         requireNotNull(togglesByKey[key]) { "Unknown keyboard toggle: $key" }
-        // These options are enabled by default on a fresh install.
         val defaultEnabled = key in setOf(
+            "show_text_preview",
             "micro_vibration",
             "delete_space_on_quick_symbol",
             "persistent_number_row",
