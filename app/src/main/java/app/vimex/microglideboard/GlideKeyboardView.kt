@@ -162,25 +162,24 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val N: String? = null
     private val langData = mapOf(
         "uk" to listOf(
-            //        ↑     ↗     →     ↘     ↓     ↙     ←     ↖
-            listOf(  "о",  "а",  "е",  "и",  "н",  "т",  "р",  "с"),  // Neutral
-            listOf(  "в",  "л",  "к",  "м",  "д",  "п",  "у",  "і"),  // G1
-            listOf(  "ь",  "я",  "з",  "й",  "б",  "г",  "ч",  "ж"),  // G2
-            listOf(  "ю",  "х",  "ш",  "є",  "ї",  "щ",  "ц",  "ф"),  // G3
-            listOf(  "ґ",   "-",    "'",    N,    N,    N,    N,    N  )   // G4
+            listOf("о", "а", "е", "и", "н", "т", "р", "с"),
+            listOf("в", "л", "к", "м", "д", "п", "у", "і"),
+            listOf("ь", "я", "з", "й", "б", "г", "ч", "ж"),
+            listOf("ю", "х", "ш", "є", "ї", "щ", "ц", "ф"),
+            listOf("ґ", "-", "'", N, N, N, N, N)
         ),
         "en" to listOf(
-            listOf(  "e",  "a",  "o",  "i",  "n",  "t",  "r",  "s"),  // Neutral
-            listOf(  "w",  "l",  "c",  "m",  "d",  "p",  "u",  "h"),  // G1
-            listOf(  "g",  "y",  "f",  "b",  "v",  "k",  "j",   N ),  // G2
-            listOf(  "x",  "z",  "q",   "'",    N,    N,    N,    N  )   // G3
+            listOf("e", "a", "o", "i", "n", "t", "r", "s"),
+            listOf("w", "l", "c", "m", "d", "p", "u", "h"),
+            listOf("g", "y", "f", "b", "v", "k", "j", "q"),
+            listOf("x", "z", "'", N, N, N, N, N)
         ),
         "ru" to listOf(
-            listOf(  "о",  "а",  "е",  "и",  "н",  "т",  "р",  "с"),  // Neutral
-            listOf(  "в",  "л",  "к",  "м",  "д",  "п",  "у",  "ы"),  // G1
-            listOf(  "ь",  "я",  "з",  "й",  "б",  "г",  "ч",  "ж"),  // G2
-            listOf(  "ю",  "х",  "ш",  "э",  "ё",  "щ",  "ц",  "ф"),  // G3
-            listOf(  "ъ",   "-",    N,    N,    N,    N,    N,    N  )   // G4
+            listOf("о", "а", "е", "и", "н", "т", "р", "с"),
+            listOf("в", "л", "к", "м", "д", "п", "у", "ы"),
+            listOf("ь", "я", "з", "й", "б", "г", "ч", "ж"),
+            listOf("ю", "х", "ш", "э", "ё", "щ", "ц", "ф"),
+            listOf("ъ", "-", N, N, N, N, N, N)
         )
     )
     private val symbolEmoticons = listOf(
@@ -210,6 +209,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         "((┌|o^▽^o|┘))",
         "(｡◕‿◕｡)",
         "┐(￣ヘ￣)┌",
+        "Vibe coding kills",
         "Паляниця"
     )
     private var currentSymbolEmoticon = symbolEmoticons.random()
@@ -548,7 +548,7 @@ class GlideKeyboardView(context: Context) : View(context) {
         val availableTop = zoneTop + edgeInset
         val availableBottom = (zoneBottom - edgeInset).coerceAtLeast(availableTop + 1f)
         val availableH = (availableBottom - availableTop).coerceAtLeast(1f)
-        val scale = KeyboardSettings.read(prefs, "gesture_height_scale").coerceIn(0.45f, 1f)
+        val scale = KeyboardSettings.read(prefs, "gesture_height_scale")
         val offset = KeyboardSettings.read(prefs, "gesture_center_offset_dp") * dp
 
         // Keep the gesture centers inside their usable area, but do not silently
@@ -625,6 +625,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     private val pActionPopupText = pt(19f,"#FFFFFF")
     private val pCursorText = pt(28f, "#DCE6F2")
     private val pCursorBorder = ps("#263348", 1f)
+    private val pKeyBorder = ps("#39404A", 1f)
 
     private var isLightKeyboard = false
     private var isOledKeyboard = false
@@ -650,9 +651,9 @@ class GlideKeyboardView(context: Context) : View(context) {
         }
 
         recolor(pBgT, "#0D0D1A", "#F8FAFC", "#000000")
-        recolor(pBgL, "#161628", "#FFFFFF", "#000000")
-        recolor(pBgR, "#13202E", "#F0F3F7", "#000000")
-        recolor(pBgRd, "#0D1118", "#DEE7F0", "#000000")
+        recolor(pBgL, "#161628", "#F7FAFC", "#000000")
+        recolor(pBgR, "#13202E", "#FFFFFF", "#000000")
+        recolor(pBgRd, "#0D1118", "#F0F3F7", "#000000")
         recolor(pDvH, "#1A263A", "#C8D3E0", "#161616")
         recolor(pDvV, "#1A263A", "#C8D3E0", "#161616")
         recolor(pGroupDivider, "#26344A", "#C5D0DE", "#202020")
@@ -660,12 +661,12 @@ class GlideKeyboardView(context: Context) : View(context) {
         recolor(pLng, "#4A9EBA", "#0E7490")
         recolor(pGAc, "#E2E8F0", "#0F172A")
         recolor(pGIn, "#273450", "#64748B")
-        recolor(pPBg, "#192336", "#E2E8F0", "#050505")
+        recolor(pPBg, "#192336", "#E2E8F0", "#000000")
         recolor(pRpT, "#4ADE80", "#15803D")
         recolor(pBsT, "#F87171", "#B91C1C")
-        recolor(pBbB, "#0E1924", "#E2E8F0", "#050505")
+        recolor(pBbB, "#0E1924", "#E2E8F0", "#000000")
         recolor(pBbT, "#7EB0E0", "#245B88")
-        recolor(pHBg, "#1C3555", "#DCEBFA", "#080808")
+        recolor(pHBg, "#1C3555", "#DCEBFA", "#000000")
         pHBg.alpha = 245
         recolor(pHBd, "#4070A0", "#7AA4D2")
         recolor(pHDt, "#4070A0", "#3975B8")
@@ -674,32 +675,33 @@ class GlideKeyboardView(context: Context) : View(context) {
         recolor(pRDt, "#5888B8", "#3975B8")
         pRDt.alpha = if (isLightKeyboard) 75 else 110
         recolor(pSyB, "#161624", "#F4F6F9", "#000000")
-        recolor(pSBtn, "#292B30", "#E3E8EF", "#050505")
-        recolor(pSBAl, "#3A3B40", "#CBD5E1", "#111111")
-        recolor(pSPressed, "#414650", "#B9CAE0", "#1A1A1A")
+        recolor(pSBtn, "#292B30", "#E3E8EF", "#000000")
+        recolor(pSBAl, "#3A3B40", "#CBD5E1", "#000000")
+        recolor(pSPressed, "#414650", "#B9CAE0", "#000000")
         recolor(pSTx, "#F1F2F5", "#111827")
         recolor(pSTxS, "#D2D5DC", "#334155")
         recolor(pSLang, "#D2D5DC", "#334155")
-        recolor(pSPopupBg, "#3A3D44", "#F8FAFC", "#080808")
+        recolor(pSPopupBg, "#3A3D44", "#F8FAFC", "#000000")
         recolor(pSPopupBorder, "#707681", "#94A3B8")
-        recolor(pSPopupSelected, "#596A82", "#BCD0E8")
+        recolor(pSPopupSelected, "#596A82", "#BCD0E8", "#000000")
         recolor(pSPopupText, "#FFFFFF", "#0F172A")
-        recolor(pSPreviewBg, "#424750", "#FFFFFF", "#080808")
+        recolor(pSPreviewBg, "#424750", "#FFFFFF", "#000000")
         recolor(pSPreviewBorder, "#8B94A2", "#94A3B8")
         recolor(pSPreviewText, "#FFFFFF", "#0F172A")
-        recolor(pActionBg, "#1A202A", "#E3E8EF", "#050505")
-        recolor(pActionBgActive, "#30435B", "#B9D0E8", "#171717")
-        recolor(pActionShiftOnceBg, "#29496B", "#B7D7FA")
-        recolor(pActionShiftCapsBg, "#4B456F", "#D4C7F2")
+        recolor(pActionBg, "#1A202A", "#E3E8EF", "#000000")
+        recolor(pActionBgActive, "#30435B", "#B9D0E8", "#000000")
+        recolor(pActionShiftOnceBg, "#29496B", "#B7D7FA", "#000000")
+        recolor(pActionShiftCapsBg, "#4B456F", "#D4C7F2", "#000000")
         recolor(pActionText, "#DCE6F2", "#1E293B")
         recolor(pActionSmallText, "#DCE6F2", "#334155")
         recolor(pActionEnterText, "#F1F5FA", "#111827")
-        recolor(pActionPopupBg, "#3A3D44", "#F8FAFC", "#080808")
+        recolor(pActionPopupBg, "#3A3D44", "#F8FAFC", "#000000")
         recolor(pActionPopupBorder, "#8794A6", "#94A3B8")
-        recolor(pActionPopupActive, "#596A82", "#B7CEE8")
+        recolor(pActionPopupActive, "#596A82", "#B7CEE8", "#000000")
         recolor(pActionPopupText, "#FFFFFF", "#0F172A")
         recolor(pCursorText, "#DCE6F2", "#1E293B")
-        recolor(pCursorBorder, "#263348", "#C2CFDE")
+        recolor(pCursorBorder, "#263348", "#C2CFDE", "#303030")
+        recolor(pKeyBorder, "#39404A", "#B8C1CC", "#303030")
         onSystemBarAppearanceChanged?.invoke()
     }
 
@@ -857,8 +859,8 @@ class GlideKeyboardView(context: Context) : View(context) {
             val caretIsHere = wrapped.caretLine == start + index
             var caretColumn = wrapped.caretColumn.coerceIn(0, line.length)
             val displayLine = line
-            val display = if (displayLine.isEmpty()) "↵" else displayLine
-            canvas.drawText(display, left, baseline, paint)
+            val display = displayLine
+            if (display.isNotEmpty()) canvas.drawText(display, left, baseline, paint)
             if (caretIsHere) {
                 caretColumn = caretColumn.coerceIn(0, displayLine.length)
                 val caretX = left + paint.measureText(displayLine.substring(0, caretColumn))
@@ -946,7 +948,7 @@ class GlideKeyboardView(context: Context) : View(context) {
                 bounds.right - 2f * dp, bounds.bottom - 2f * dp
             )
             canvas.drawRoundRect(rect, 5f * dp, 5f * dp, if (active) pActionBgActive else pActionBg)
-            canvas.drawRoundRect(rect, 5f * dp, 5f * dp, pCursorBorder)
+            canvas.drawRoundRect(rect, 5f * dp, 5f * dp, pKeyBorder)
             canvas.drawText(bounds.key.label, bounds.centerX, bounds.centerY + pCursorText.textSize / 3f, pCursorText)
         }
     }
@@ -1105,6 +1107,7 @@ class GlideKeyboardView(context: Context) : View(context) {
             }
             val rect = RectF(bounds.left + 2f * dp, bounds.top + 2f * dp, bounds.right - 2f * dp, bounds.bottom - 2f * dp)
             canvas.drawRoundRect(rect, 5f * dp, 5f * dp, if (isShift) shiftBg else if (isActive) pActionBgActive else pActionBg)
+            canvas.drawRoundRect(rect, 5f * dp, 5f * dp, pKeyBorder)
             if (isShift) {
                 drawShiftIcon(canvas, bounds, displayedShiftState)
             } else if (bounds.key.id == "ENTER") {
@@ -1538,10 +1541,9 @@ class GlideKeyboardView(context: Context) : View(context) {
                 special -> pSBAl
                 else -> pSBtn
             }
-            canvas.drawRoundRect(
-                RectF(b.left + 2f * dp, b.top + 2f * dp, b.right - 2f * dp, b.bottom - 2f * dp),
-                6f * dp, 6f * dp, bg
-            )
+            val keyRect = RectF(b.left + 2f * dp, b.top + 2f * dp, b.right - 2f * dp, b.bottom - 2f * dp)
+            canvas.drawRoundRect(keyRect, 6f * dp, 6f * dp, bg)
+            canvas.drawRoundRect(keyRect, 6f * dp, 6f * dp, pKeyBorder)
             val tx = when {
                 b.key.action == SymAction.SPACE -> pSLang
                 b.key.label.length >= 4 || special -> pSTxS
@@ -1895,7 +1897,9 @@ class GlideKeyboardView(context: Context) : View(context) {
                             // A tap without a selected direction is an explicit space.
                             // Do not inspect text after the cursor: it may be the next paragraph,
                             // and must not suppress a deliberate space insertion.
-                            if (lastDir == -1) commitInputText(" ")
+                            // A stationary right-finger tap is a space; a directional swipe
+                            // types its letter during moveR(), then adds the expected trailing space.
+                            commitInputText(" ")
                             rightId = -1; rDown = false; lastDir = -1
                             velocitySamples.clear()
                             rLastEventTime = 0L; rTD = 0f; candidateDir = -1
@@ -2017,7 +2021,7 @@ class GlideKeyboardView(context: Context) : View(context) {
     }
 
     private fun commitTextWithHaptic(ic: InputConnection, text: CharSequence, newCursorPosition: Int = 1) {
-        if (text.isNotEmpty()) microVibrate()
+        if (text.isNotEmpty() && text.toString() != " ") microVibrate()
         ic.commitText(text, newCursorPosition)
         if (showTextPreview) post { onEditorSelectionChanged() }
     }

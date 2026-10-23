@@ -3,7 +3,7 @@
     <string name="app_name">MicroGlideBoard</string>
     <string name="app_icon_description">Іконка MicroGlideBoard</string>
     <string name="settings_title">MicroGlideBoard — налаштування</string>
-    <string name="settings_intro">иношена в гарячковому маренні. Зроблена по приколу. Не вломай собі пальців.</string>
+    <string name="settings_intro">Ні клавіш, ні сорому. Іх там нєт. Освоюйте — освоєте.</string>
     <string name="section_interface_language">Мова інтерфейсу</string>
     <string name="language_ukrainian">Державна</string>
     <string name="language_english">English</string>
@@ -27,23 +27,23 @@
     <string name="section_text_entry">Введення тексту</string>
 
     <string name="setting_height">Висота клавіатури</string>
-    <string name="hint_height">dp · типово 330 · діапазон 240–420</string>
+    <string name="hint_height">dp · типово 330</string>
     <string name="setting_left_ratio">Ширина лівої зони</string>
-    <string name="hint_left_ratio">Частка ширини екрана від 0 до 1 · типово 0.38</string>
+    <string name="hint_left_ratio">Частка ширини екрана · типово 0.38</string>
     <string name="setting_bottom_margin">Відступ клавіатури від нижнього краю</string>
-    <string name="hint_bottom_margin">dp · типово 0 · нуль означає без додаткового відступу</string>
+    <string name="hint_bottom_margin">dp · типово 0 · можна вводити від’ємні значення</string>
     <string name="setting_gesture_height">Висота зон жестів</string>
-    <string name="hint_gesture_height">Масштаб 0.45–1.0 · типово 1.0</string>
+    <string name="hint_gesture_height">Масштаб · типово 1.0</string>
     <string name="setting_gesture_offset">Вертикальне зміщення центрів жестів</string>
     <string name="setting_keyboard_offset">Вертикальне зміщення клавіатури</string>
-    <string name="hint_gesture_offset">dp · додатне значення зміщує центри жестів вниз, від’ємне — вгору; біля країв зона стискається</string>
-    <string name="hint_keyboard_offset">dp · додатне значення зміщує всю клавіатуру вгору, від’ємне — вниз. Фіксованого діапазону немає.</string>
+    <string name="hint_gesture_offset">dp · додатне значення зміщує центри жестів вниз, від’ємне — вгору</string>
+    <string name="hint_keyboard_offset">dp · додатне значення зміщує всю клавіатуру вгору, від’ємне — вниз.</string>
     <string name="setting_gesture_distance">Поріг відстані жесту</string>
     <string name="hint_gesture_distance">dp · типово 10 · 0 вимикає поріг відстані</string>
     <string name="setting_gesture_speed">Мінімальна швидкість жесту</string>
-    <string name="hint_gesture_speed">dp/с · типово 55 · 0 вимикає фільтр швидкості</string>
+    <string name="hint_gesture_speed">dp/с · типово 45 · 0 вимикає фільтр швидкості</string>
     <string name="setting_preview_lines">Кількість рядків індикатора тексту</string>
-    <string name="hint_preview_lines">Від 1 рядка без верхньої межі · типово 3</string>
+    <string name="hint_preview_lines">Від 1 рядка · типово 3</string>
     <string name="setting_hint_right">Розмір кругової підказки справа</string>
     <string name="hint_hint_right">dp · типово 42</string>
     <string name="setting_hint_bubble">Розмір підказок груп букв</string>
@@ -86,4 +86,6 @@
     <string name="keyboard_lang_en">АНГЛ</string>
     <string name="keyboard_lang_ru">ОРК</string>
     <string name="keyboard_abc">ABC</string>
+    <string name="toggle_vibe_coder_protection">Захист від вайб-кодерів</string>
+    <string name="toast_uninstall_failed">Не вдалося захистити</string>
 </resources>

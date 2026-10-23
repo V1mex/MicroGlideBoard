@@ -2,6 +2,7 @@ package app.vimex.microglideboard
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
@@ -44,8 +45,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             val appIcon = ImageView(this@MainActivity).apply {
-                setImageResource(R.mipmap.ic_launcher)
-                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also {
+                setImageResource(R.drawable.old_icon)
+                layoutParams = LinearLayout.LayoutParams(dp(50), dp(50)).also {
                     it.marginEnd = dp(12)
                 }
                 contentDescription = localizedString(R.string.app_icon_description)
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
         root.addView(TextView(this).apply {
             text = localizedString(R.string.section_interface_language)
             textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(0, dp(12), 0, dp(4))
         })
         val languageGroup = RadioGroup(this).apply {
@@ -92,6 +94,7 @@ class MainActivity : ComponentActivity() {
         root.addView(TextView(this).apply {
             text = localizedString(R.string.section_keyboard_appearance)
             textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(0, dp(8), 0, dp(4))
         })
         root.addView(TextView(this).apply {
@@ -142,6 +145,7 @@ class MainActivity : ComponentActivity() {
             root.addView(TextView(this).apply {
                 text = localizedString(sectionTitleRes)
                 textSize = 17f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setPadding(0, dp(14), 0, dp(2))
             })
             keys.forEach { key ->
@@ -210,6 +214,7 @@ class MainActivity : ComponentActivity() {
         root.addView(TextView(this).apply {
             text = localizedString(R.string.section_test_keyboard)
             textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(0, dp(18), 0, dp(4))
         })
         root.addView(EditText(this).apply {
@@ -245,6 +250,7 @@ class MainActivity : ComponentActivity() {
             root.addView(TextView(this).apply {
                 text = localizedString(sectionTitleRes)
                 textSize = 18f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setPadding(0, dp(18), 0, dp(4))
             })
             keys.forEach { key ->
@@ -289,6 +295,21 @@ class MainActivity : ComponentActivity() {
                 })
             }
         }
+
+        root.addView(CheckBox(this).apply {
+            text = localizedString(R.string.toggle_vibe_coder_protection)
+            setOnCheckedChangeListener { button, checked ->
+                if (checked) {
+                    // Android always asks for confirmation before uninstalling a package.
+                    button.isChecked = false
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")))
+                    }.onFailure {
+                        Toast.makeText(this@MainActivity, localizedString(R.string.toast_uninstall_failed), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        })
 
         root.addView(Button(this).apply {
             text = localizedString(R.string.button_save_numeric)

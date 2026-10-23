@@ -28,16 +28,16 @@ object KeyboardSettings {
     data class ToggleDefinition(val key: String)
 
     val definitions = listOf(
-        Definition("height_dp", 330f, 240f, 420f),
-        Definition("left_ratio", 0.38f, 0.30f, 0.52f),
-        Definition("gest_dp", 10f, 0f, 24f),
-        Definition("gesture_speed", 55f, 0f, 800f),
+        Definition("height_dp", 330f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("left_ratio", 0.38f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("gest_dp", 10f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("gesture_speed", 45f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
         Definition("preview_lines", 3f, 1f, Float.MAX_VALUE),
-        Definition("hint_right", 42f, 28f, 48f),
-        Definition("hint_bubble", 1f, 0.7f, 1.5f),
-        Definition("hint_pill", 17f, 12f, 24f),
-        Definition("bottom_margin_dp", 0f, 0f, 80f),
-        Definition("gesture_height_scale", 1f, 0.45f, 1f),
+        Definition("hint_right", 42f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("hint_bubble", 1f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("hint_pill", 17f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("bottom_margin_dp", 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
+        Definition("gesture_height_scale", 1f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
         Definition("gesture_center_offset_dp", 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY),
         // No user-visible min/max for moving the entire keyboard. The view only applies
         // a platform-safe pixel bound when calculating its measured height.

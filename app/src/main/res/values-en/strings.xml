@@ -3,9 +3,9 @@
     <string name="app_name">MicroGlideBoard</string>
     <string name="app_icon_description">MicroGlideBoard app icon</string>
     <string name="settings_title">MicroGlideBoard — Settings</string>
-    <string name="settings_intro">Finger-dance lab: numeric settings save with the button below; switches save instantly. Dance carefully: the keyboard remembers everything.</string>
+    <string name="settings_intro">No keys were harmed in the making of this keyboard. Mainly because there aren\'t many. Break a leg, not your fingers.</string>
     <string name="section_interface_language">Interface language</string>
-    <string name="language_ukrainian">Ukrainian</string>
+    <string name="language_ukrainian">Українська</string>
     <string name="language_english">English</string>
     <string name="section_keyboard_appearance">Keyboard appearance</string>
     <string name="keyboard_theme_description">The keyboard theme is independent of the app theme. OLED Black uses a pure black background for OLED screens. Changes apply immediately.</string>
@@ -27,23 +27,23 @@
     <string name="section_text_entry">Text input</string>
 
     <string name="setting_height">Keyboard height</string>
-    <string name="hint_height">dp · default 330 · range 240–420</string>
+    <string name="hint_height">dp · default 330</string>
     <string name="setting_left_ratio">Left zone width</string>
-    <string name="hint_left_ratio">Fraction of screen width from 0 to 1 · default 0.38</string>
+    <string name="hint_left_ratio">Screen width fraction · default 0.38</string>
     <string name="setting_bottom_margin">Keyboard distance from the bottom edge</string>
-    <string name="hint_bottom_margin">dp · default 0 · zero means no extra bottom gap</string>
+    <string name="hint_bottom_margin">dp · default 0 · negative values are allowed</string>
     <string name="setting_gesture_height">Gesture zone height</string>
-    <string name="hint_gesture_height">Scale 0.45–1.0 · default 1.0</string>
+    <string name="hint_gesture_height">Scale · default 1.0</string>
     <string name="setting_gesture_offset">Vertical offset of gesture centers</string>
     <string name="setting_keyboard_offset">Vertical keyboard offset</string>
-    <string name="hint_gesture_offset">dp · positive moves gesture centers down, negative moves them up; spread contracts near edges</string>
-    <string name="hint_keyboard_offset">dp · positive moves the whole keyboard up; negative moves it down. No fixed user-entered range.</string>
+    <string name="hint_gesture_offset">dp · positive moves gesture centers down, negative moves them up</string>
+    <string name="hint_keyboard_offset">dp · positive moves the whole keyboard up; negative moves it down.</string>
     <string name="setting_gesture_distance">Gesture distance threshold</string>
     <string name="hint_gesture_distance">dp · default 10 · 0 disables the distance threshold</string>
     <string name="setting_gesture_speed">Minimum gesture speed</string>
-    <string name="hint_gesture_speed">dp/s · default 55 · 0 disables the speed filter</string>
+    <string name="hint_gesture_speed">dp/s · default 45 · 0 disables the speed filter</string>
     <string name="setting_preview_lines">Number of text indicator lines</string>
-    <string name="hint_preview_lines">From 1 line, no fixed upper limit · default 3</string>
+    <string name="hint_preview_lines">1 line or more · default 3</string>
     <string name="setting_hint_right">Right circular hint size</string>
     <string name="hint_hint_right">dp · default 42</string>
     <string name="setting_hint_bubble">Letter-group hint size</string>
@@ -86,4 +86,6 @@
     <string name="keyboard_lang_en">ENG</string>
     <string name="keyboard_lang_ru">RUS</string>
     <string name="keyboard_abc">ABC</string>
+    <string name="toggle_vibe_coder_protection">Protection from vibe coders</string>
+    <string name="toast_uninstall_failed">Could not protect</string>
 </resources>
